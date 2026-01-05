@@ -34,13 +34,33 @@ export const VOCAL_PRESETS = {
   SOPRANO: { name: '소프라노 (높은 여성)', low: noteToNumber('C4'), high: noteToNumber('C6') },
 };
 
+// 플랫을 샤프로 변환하는 매핑
+const FLAT_TO_SHARP: Record<string, { note: string; octaveOffset: number }> = {
+  'Cb': { note: 'B', octaveOffset: -1 },
+  'Db': { note: 'C#', octaveOffset: 0 },
+  'Eb': { note: 'D#', octaveOffset: 0 },
+  'Fb': { note: 'E', octaveOffset: 0 },
+  'Gb': { note: 'F#', octaveOffset: 0 },
+  'Ab': { note: 'G#', octaveOffset: 0 },
+  'Bb': { note: 'A#', octaveOffset: 0 },
+};
+
 // 음 이름을 숫자로 변환 (C0 = 0, C#0 = 1, ...)
 export function noteToNumber(note: string): number {
-  const match = note.match(/^([A-G]#?)(\d+)$/);
+  // 샾(#)이나 플랫(b)을 포함한 음표 매칭
+  const match = note.match(/^([A-G][#b]?)(\d+)$/);
   if (!match) throw new Error(`Invalid note format: ${note}`);
 
-  const noteName = match[1];
-  const octave = parseInt(match[2]);
+  let noteName = match[1];
+  let octave = parseInt(match[2]);
+
+  // 플랫을 샤프로 변환
+  if (noteName.includes('b')) {
+    const conversion = FLAT_TO_SHARP[noteName];
+    if (!conversion) throw new Error(`Invalid note name: ${noteName}`);
+    noteName = conversion.note;
+    octave += conversion.octaveOffset;
+  }
 
   const noteIndex = NOTE_NAMES.indexOf(noteName);
   if (noteIndex === -1) throw new Error(`Invalid note name: ${noteName}`);

@@ -4,15 +4,27 @@ import { recommendSongs } from './utils/vocalMatcher';
 import { SAMPLE_SONGS } from './data/songs';
 import { VocalRangeInput } from './components/VocalRangeInput';
 import { SongRecommendations } from './components/SongRecommendations';
+import { VoiceRecorder } from './components/VoiceRecorder';
+import { VocalRangeVisualizer } from './components/VocalRangeVisualizer';
+import { RangeDetails } from './components/RangeDetails';
 
 function App() {
   const [userRange, setUserRange] = useState<VocalRange | null>(null);
+  const [detectedRange, setDetectedRange] = useState<VocalRange | null>(null);
   const [recommendations, setRecommendations] = useState<KeyAdjustment[]>([]);
   const [showOnlyInRange, setShowOnlyInRange] = useState(false);
+  const [activeTab, setActiveTab] = useState<'manual' | 'record'>('manual');
 
   const handleRangeChange = (range: VocalRange) => {
     setUserRange(range);
     updateRecommendations(range, showOnlyInRange);
+  };
+
+  const handleRangeDetected = (range: VocalRange) => {
+    setDetectedRange(range);
+    setUserRange(range);
+    updateRecommendations(range, showOnlyInRange);
+    setActiveTab('manual'); // 측정 후 수동 탭으로 전환
   };
 
   const handleToggleFilter = () => {
@@ -44,8 +56,54 @@ function App() {
           </p>
         </header>
 
-        {/* 음역대 입력 */}
-        <VocalRangeInput onRangeChange={handleRangeChange} />
+        {/* 탭 선택 */}
+        <div className="bg-white rounded-lg shadow-md p-2 mb-6">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('manual')}
+              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-colors ${
+                activeTab === 'manual'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              ⌨️ 직접 입력
+            </button>
+            <button
+              onClick={() => setActiveTab('record')}
+              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-colors ${
+                activeTab === 'record'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              🎙️ 음성 측정
+            </button>
+          </div>
+        </div>
+
+        {/* 음역대 입력/측정 */}
+        {activeTab === 'manual' ? (
+          <VocalRangeInput onRangeChange={handleRangeChange} />
+        ) : (
+          <VoiceRecorder onRangeDetected={handleRangeDetected} />
+        )}
+
+        {/* 음역대 시각화 */}
+        {(userRange || detectedRange) && (
+          <VocalRangeVisualizer
+            userRange={userRange}
+            detectedRange={detectedRange}
+          />
+        )}
+
+        {/* 음역대 상세 정보 */}
+        {userRange && (
+          <RangeDetails
+            range={userRange}
+            title={detectedRange ? '측정된 음역대 상세 정보' : '설정된 음역대 상세 정보'}
+          />
+        )}
 
         {/* 노래 추천 */}
         <SongRecommendations
@@ -60,20 +118,26 @@ function App() {
           <ul className="space-y-2 text-sm text-gray-600">
             <li className="flex items-start">
               <span className="mr-2">1.</span>
-              <span>자신의 최저음과 최고음을 선택하거나 프리셋을 사용하세요.</span>
+              <span>
+                음역대를 직접 입력하거나 음성 녹음/파일 업로드로 자동 측정하세요.
+              </span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">2.</span>
-              <span>추천된 노래 목록에서 부를 수 있는 곡을 확인하세요.</span>
+              <span>피아노 건반과 상세 분석으로 내 음역대를 시각적으로 확인하세요.</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">3.</span>
+              <span>추천된 노래 목록에서 부를 수 있는 곡을 확인하세요.</span>
+            </li>
+            <li className="flex items-start">
+              <span className="mr-2">4.</span>
               <span>
                 키 조절이 필요한 경우, 노래방 리모컨에서 해당 키만큼 올리거나 내리세요.
               </span>
             </li>
             <li className="flex items-start">
-              <span className="mr-2">4.</span>
+              <span className="mr-2">5.</span>
               <span>
                 초록색 표시는 조정 없이 바로 부를 수 있는 노래입니다!
               </span>
