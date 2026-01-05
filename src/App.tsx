@@ -3,11 +3,13 @@ import type { VocalRange, KeyAdjustment } from './types';
 import { numberToNote } from './types';
 import { recommendSongs } from './utils/vocalMatcher';
 import { findSimilarArtists, getVocalType } from './utils/artistMatcher';
-// import { analyzeTimbre, inferVocalStyle, type TimbreProfile, type VocalStyle } from './utils/timbreAnalysis';
+import type { TimbreProfile, VocalStyle } from './utils/timbreAnalysis';
 import { SAMPLE_SONGS } from './data/songs';
 import { VoiceRecorder } from './components/VoiceRecorder';
 import { VocalRangeVisualizer } from './components/VocalRangeVisualizer';
 import { RangeDetails } from './components/RangeDetails';
+import { TimbreRecorder } from './components/TimbreRecorder';
+import { TimbreResult } from './components/TimbreResult';
 
 type Step = 'start' | 'select-analysis' | 'measuring-range' | 'measuring-timbre' | 'range-result' | 'timbre-result' | 'songs' | 'search';
 
@@ -16,6 +18,8 @@ function App() {
   const [userRange, setUserRange] = useState<VocalRange | null>(null);
   const [recommendations, setRecommendations] = useState<KeyAdjustment[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [timbreProfile, setTimbreProfile] = useState<TimbreProfile | null>(null);
+  const [vocalStyle, setVocalStyle] = useState<VocalStyle | null>(null);
 
   const similarArtists = userRange ? findSimilarArtists(userRange, 3) : [];
   const vocalType = userRange ? getVocalType(userRange) : '';
@@ -135,25 +139,40 @@ function App() {
         {/* Step 2-2: 음색 측정 중 */}
         {step === 'measuring-timbre' && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-              <div className="text-6xl mb-4">🎨</div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-6">
-                음색 분석 중...
-              </h2>
-              <p className="text-gray-600 mb-8">
-                곧 구현 예정입니다! 음역대 분석을 먼저 이용해주세요.
-              </p>
+            <TimbreRecorder
+              onAnalysisComplete={(profile, style) => {
+                setTimbreProfile(profile);
+                setVocalStyle(style);
+                setStep('timbre-result');
+              }}
+            />
+            <button
+              onClick={() => setStep('start')}
+              className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
+            >
+              ← 처음으로
+            </button>
+          </div>
+        )}
+
+        {/* Step 3-1: 음색 결과 화면 */}
+        {step === 'timbre-result' && timbreProfile && vocalStyle && (
+          <div className="space-y-6 animate-fadeIn">
+            <TimbreResult profile={timbreProfile} style={vocalStyle} />
+
+            {/* 다음 단계 버튼 */}
+            <div className="flex gap-4">
               <button
                 onClick={() => setStep('start')}
-                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-full hover:shadow-lg transform hover:scale-105 transition-all"
+                className="flex-1 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-full hover:shadow-lg transform hover:scale-105 transition-all"
               >
-                ← 분석 선택으로
+                다시 분석하기 →
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 3: 음역대 결과 화면 */}
+        {/* Step 3-2: 음역대 결과 화면 */}
         {step === 'range-result' && userRange && (
           <div className="space-y-6 animate-fadeIn">
             {/* 음역대 결과 */}
