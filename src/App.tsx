@@ -3,28 +3,19 @@ import type { VocalRange, KeyAdjustment } from './types';
 import { numberToNote } from './types';
 import { recommendSongs } from './utils/vocalMatcher';
 import { findSimilarArtists, getVocalType } from './utils/artistMatcher';
+// import { analyzeTimbre, inferVocalStyle, type TimbreProfile, type VocalStyle } from './utils/timbreAnalysis';
 import { SAMPLE_SONGS } from './data/songs';
 import { VoiceRecorder } from './components/VoiceRecorder';
 import { VocalRangeVisualizer } from './components/VocalRangeVisualizer';
 import { RangeDetails } from './components/RangeDetails';
 
-type Step = 'start' | 'measuring' | 'result' | 'songs' | 'search';
+type Step = 'start' | 'select-analysis' | 'measuring-range' | 'measuring-timbre' | 'range-result' | 'timbre-result' | 'songs' | 'search';
 
 function App() {
   const [step, setStep] = useState<Step>('start');
   const [userRange, setUserRange] = useState<VocalRange | null>(null);
   const [recommendations, setRecommendations] = useState<KeyAdjustment[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const handleRangeDetected = (range: VocalRange) => {
-    setUserRange(range);
-    const results = recommendSongs(range, SAMPLE_SONGS, {
-      maxAdjustment: 6,
-      onlyInRange: false,
-    });
-    setRecommendations(results);
-    setStep('result');
-  };
 
   const similarArtists = userRange ? findSimilarArtists(userRange, 3) : [];
   const vocalType = userRange ? getVocalType(userRange) : '';
@@ -50,23 +41,60 @@ function App() {
           </p>
         </header>
 
-        {/* Step 1: 시작 화면 */}
+        {/* Step 1: 시작 화면 - 분석 타입 선택 */}
         {step === 'start' && (
           <div className="space-y-6 animate-fadeIn">
             <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
               <div className="text-6xl mb-6">🎵</div>
               <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                음성을 측정해보세요!
+                어떤 분석을 원하시나요?
               </h2>
               <p className="text-gray-600 mb-8 text-lg">
-                5초만 노래하면 당신의 음역대를 분석해드릴게요
+                음역대와 음색, 원하는 분석을 선택하세요
               </p>
-              <button
-                onClick={() => setStep('measuring')}
-                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-full hover:shadow-lg transform hover:scale-105 transition-all"
+            </div>
+
+            {/* 분석 타입 카드 */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* 음역대 분석 */}
+              <div
+                onClick={() => setStep('measuring-range')}
+                className="bg-gradient-to-br from-blue-50 to-indigo-100 border-2 border-blue-300 rounded-2xl p-8 cursor-pointer hover:shadow-xl transform hover:scale-105 transition-all"
               >
-                지금 시작하기 →
-              </button>
+                <div className="text-5xl mb-4">🎼</div>
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">
+                  음역대 분석
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  내 최저음/최고음을 측정하고<br />
+                  부를 수 있는 노래를 추천받아요
+                </p>
+                <ul className="text-sm text-gray-600 space-y-1 text-left">
+                  <li>• 음역대 측정 (예: E2 ~ E4)</li>
+                  <li>• 비슷한 가수 찾기</li>
+                  <li>• 노래 키 조절 가이드</li>
+                </ul>
+              </div>
+
+              {/* 음색 & 장르 분석 */}
+              <div
+                onClick={() => setStep('measuring-timbre')}
+                className="bg-gradient-to-br from-pink-50 to-purple-100 border-2 border-pink-300 rounded-2xl p-8 cursor-pointer hover:shadow-xl transform hover:scale-105 transition-all"
+              >
+                <div className="text-5xl mb-4">🎨</div>
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">
+                  음색 & 장르 분석
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  목소리 특징을 분석하고<br />
+                  어울리는 장르를 추천받아요
+                </p>
+                <ul className="text-sm text-gray-600 space-y-1 text-left">
+                  <li>• 음색 프로필 (밝기, 질감)</li>
+                  <li>• 보컬 스타일 분석</li>
+                  <li>• 장르 추천 (팝, 발라드 등)</li>
+                </ul>
+              </div>
             </div>
 
             <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-6">
@@ -76,17 +104,25 @@ function App() {
               </h3>
               <ul className="space-y-2 text-yellow-800">
                 <li>• 조용한 곳에서 측정해주세요</li>
-                <li>• "아~" 소리를 내면서 낮은 음부터 높은 음까지 불러보세요</li>
-                <li>• 최소 5초 이상 다양한 음정으로 노래해주세요</li>
+                <li>• "아~" 소리를 내면서 자연스럽게 노래해보세요</li>
+                <li>• 최소 5~10초 이상 녹음하면 정확해요</li>
               </ul>
             </div>
           </div>
         )}
 
-        {/* Step 2: 측정 중 */}
-        {step === 'measuring' && (
+        {/* Step 2-1: 음역대 측정 중 */}
+        {step === 'measuring-range' && (
           <div className="space-y-6 animate-fadeIn">
-            <VoiceRecorder onRangeDetected={handleRangeDetected} />
+            <VoiceRecorder onRangeDetected={(range) => {
+              setUserRange(range);
+              const results = recommendSongs(range, SAMPLE_SONGS, {
+                maxAdjustment: 6,
+                onlyInRange: false,
+              });
+              setRecommendations(results);
+              setStep('range-result');
+            }} />
             <button
               onClick={() => setStep('start')}
               className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
@@ -96,8 +132,29 @@ function App() {
           </div>
         )}
 
-        {/* Step 3: 결과 화면 */}
-        {step === 'result' && userRange && (
+        {/* Step 2-2: 음색 측정 중 */}
+        {step === 'measuring-timbre' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+              <div className="text-6xl mb-4">🎨</div>
+              <h2 className="text-3xl font-bold text-gray-800 mb-6">
+                음색 분석 중...
+              </h2>
+              <p className="text-gray-600 mb-8">
+                곧 구현 예정입니다! 음역대 분석을 먼저 이용해주세요.
+              </p>
+              <button
+                onClick={() => setStep('start')}
+                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-full hover:shadow-lg transform hover:scale-105 transition-all"
+              >
+                ← 분석 선택으로
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: 음역대 결과 화면 */}
+        {step === 'range-result' && userRange && (
           <div className="space-y-6 animate-fadeIn">
             {/* 음역대 결과 */}
             <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
@@ -216,7 +273,7 @@ function App() {
             </div>
 
             <button
-              onClick={() => setStep('result')}
+              onClick={() => setStep('range-result')}
               className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
             >
               ← 결과 화면으로
