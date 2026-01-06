@@ -65,18 +65,18 @@ export interface VocalStyle {
 }
 
 /**
- * Spectral Centroid 계산 (음색의 밝기)
- * 높을수록 밝고 날카로운 소리
+ * Spectral Centroid 계산 (음색의 밝기) - 간단한 버전
+ * 주파수 대역과 스펙트럼 배열을 직접 받음
  */
-function calculateSpectralCentroid(
+function calculateSimpleSpectralCentroid(
   spectrum: Float32Array,
-  sampleRate: number
+  freqBands: number[]
 ): number {
   let weightedSum = 0;
   let sum = 0;
 
   for (let i = 0; i < spectrum.length; i++) {
-    const frequency = (i * sampleRate) / (2 * spectrum.length);
+    const frequency = freqBands[i];
     const magnitude = spectrum[i];
     weightedSum += frequency * magnitude;
     sum += magnitude;
@@ -105,12 +105,12 @@ function calculateZeroCrossingRate(timeDomainData: Float32Array): number {
 }
 
 /**
- * Spectral Rolloff 계산 (고주파 에너지 분포)
+ * Spectral Rolloff 계산 (고주파 에너지 분포) - 간단한 버전
  * 전체 에너지의 85%가 집중된 주파수
  */
-function calculateSpectralRolloff(
+function calculateSimpleSpectralRolloff(
   spectrum: Float32Array,
-  sampleRate: number,
+  freqBands: number[],
   rolloffThreshold: number = 0.85
 ): number {
   let totalEnergy = 0;
@@ -124,11 +124,11 @@ function calculateSpectralRolloff(
   for (let i = 0; i < spectrum.length; i++) {
     cumulativeEnergy += spectrum[i];
     if (cumulativeEnergy >= targetEnergy) {
-      return (i * sampleRate) / (2 * spectrum.length);
+      return freqBands[i];
     }
   }
 
-  return 0;
+  return freqBands[freqBands.length - 1] || 0;
 }
 
 /**
@@ -143,50 +143,47 @@ function calculateRMS(timeDomainData: Float32Array): number {
 }
 
 /**
- * HNR (Harmonics-to-Noise Ratio) 계산
- * 고조파 성분과 잡음 성분의 비율 - 높을수록 깨끗한 음성
+ * HNR (Harmonics-to-Noise Ratio) 계산 - 간단한 버전
+ * 고조파 성분과 잡음 성분의 비율 추정
  */
-function calculateHNR(
+function calculateSimpleHNR(
   spectrum: Float32Array,
   fundamentalFreq: number,
-  sampleRate: number
+  freqBands: number[]
 ): number {
   if (fundamentalFreq <= 0) return 0;
 
-  const binWidth = sampleRate / (2 * spectrum.length);
   let harmonicEnergy = 0;
-  let noiseEnergy = 0;
+  let totalEnergy = 0;
 
-  // 처음 10개의 고조파 검사
-  const maxHarmonics = 10;
-  const harmonicBandwidth = 50; // Hz (각 고조파 주변 대역폭)
+  // 처음 5개의 고조파만 검사 (성능 최적화)
+  const maxHarmonics = 5;
 
-  for (let h = 1; h <= maxHarmonics; h++) {
-    const harmonicFreq = fundamentalFreq * h;
-    if (harmonicFreq > sampleRate / 2) break;
+  for (let i = 0; i < spectrum.length; i++) {
+    const freq = freqBands[i];
+    totalEnergy += spectrum[i];
 
-    const harmonicBin = Math.round(harmonicFreq / binWidth);
-    const bandwidthBins = Math.ceil(harmonicBandwidth / binWidth);
-
-    // 고조파 주변의 에너지 합산
-    for (let i = -bandwidthBins; i <= bandwidthBins; i++) {
-      const bin = harmonicBin + i;
-      if (bin >= 0 && bin < spectrum.length) {
-        harmonicEnergy += spectrum[bin] * spectrum[bin];
+    // 이 주파수 대역이 고조파 근처인지 확인
+    let isHarmonic = false;
+    for (let h = 1; h <= maxHarmonics; h++) {
+      const harmonicFreq = fundamentalFreq * h;
+      // 주파수 대역 범위 ±20% 이내면 고조파로 간주
+      if (Math.abs(freq - harmonicFreq) / harmonicFreq < 0.2) {
+        isHarmonic = true;
+        break;
       }
+    }
+
+    if (isHarmonic) {
+      harmonicEnergy += spectrum[i];
     }
   }
 
-  // 전체 에너지에서 고조파 에너지를 뺀 것이 잡음
-  let totalEnergy = 0;
-  for (let i = 0; i < spectrum.length; i++) {
-    totalEnergy += spectrum[i] * spectrum[i];
-  }
-  noiseEnergy = Math.max(totalEnergy - harmonicEnergy, 1e-10);
+  const noiseEnergy = Math.max(totalEnergy - harmonicEnergy, 1e-10);
 
   // HNR (dB) = 10 * log10(harmonicEnergy / noiseEnergy)
   const hnrDb = 10 * Math.log10(harmonicEnergy / noiseEnergy);
-  return Math.max(0, hnrDb); // 음수 방지
+  return Math.max(0, hnrDb);
 }
 
 /**
@@ -393,19 +390,11 @@ function calculateAttackTime(
  * 오디오 버퍼에서 음색 프로필 추출
  */
 export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbreProfile> {
-  const audioContext = new AudioContext({ sampleRate: audioBuffer.sampleRate });
   const channelData = audioBuffer.getChannelData(0);
+  const sampleRate = audioBuffer.sampleRate;
 
-  // FFT 분석을 위한 AnalyserNode
-  const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 2048;
-
-  const bufferSource = audioContext.createBufferSource();
-  bufferSource.buffer = audioBuffer;
-  bufferSource.connect(analyser);
-
-  // 분석할 세그먼트들 (성능 최적화: 10 → 5)
-  const segmentCount = 5;
+  // 분석할 세그먼트들 (성능 최적화: 극도로 단순화)
+  const segmentCount = 3;  // 5 → 3
   const segmentLength = Math.floor(channelData.length / segmentCount);
 
   let totalCentroid = 0;
@@ -417,8 +406,8 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
   let minRMS = Infinity;
   let maxRMS = -Infinity;
 
-  const pitchTrack: number[] = []; // 세미톤 단위 (음역대 계산용)
-  const frequencyTrack: number[] = []; // Hz 단위 (Jitter 계산용)
+  const pitchTrack: number[] = [];
+  const frequencyTrack: number[] = [];
   const rmsTrack: number[] = [];
   let minPitch = Infinity;
   let maxPitch = -Infinity;
@@ -428,45 +417,53 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
     const end = Math.min(start + segmentLength, channelData.length);
     const segment = channelData.slice(start, end);
 
-    // FFT 분석 (성능 최적화: 2048 → 1024)
-    const fftSize = 1024;
-    const spectrum = new Float32Array(fftSize / 2);
+    // 간단한 스펙트럼 근사 (FFT 대신 빠른 근사치 사용)
+    // 주요 주파수 대역만 샘플링 (50Hz ~ 8000Hz)
+    const freqBands = [
+      100, 200, 300, 500, 800, 1000, 1500, 2000, 3000, 4000, 6000, 8000
+    ];
+    const spectrum = new Float32Array(freqBands.length);
 
-    // 간단한 FFT 시뮬레이션 (실제로는 Web Audio API의 analyser 사용)
-    // 여기서는 근사치로 계산
-    for (let i = 0; i < spectrum.length; i++) {
-      let real = 0;
-      let imag = 0;
-      const freq = (i * audioBuffer.sampleRate) / fftSize;
+    // 각 주파수 대역의 에너지 추정 (간단한 샘플링)
+    for (let i = 0; i < freqBands.length; i++) {
+      const freq = freqBands[i];
+      const period = sampleRate / freq;
+      const samplesPerPeriod = Math.floor(period);
 
-      // 성능 최적화: 샘플 수 제한
-      const maxSamples = Math.min(segment.length, fftSize / 2);
-      for (let n = 0; n < maxSamples; n++) {
-        const angle = (2 * Math.PI * freq * n) / audioBuffer.sampleRate;
-        real += segment[n] * Math.cos(angle);
-        imag += segment[n] * Math.sin(angle);
+      // 주기적 샘플링으로 에너지 추정
+      let energy = 0;
+      const numPeriods = Math.min(10, Math.floor(segment.length / samplesPerPeriod));
+
+      for (let p = 0; p < numPeriods; p++) {
+        const idx = Math.floor(p * samplesPerPeriod);
+        if (idx < segment.length) {
+          energy += Math.abs(segment[idx]);
+        }
       }
 
-      spectrum[i] = Math.sqrt(real * real + imag * imag);
+      spectrum[i] = energy / (numPeriods || 1);
     }
 
-    // 기본 주파수 추정 (스펙트럼의 피크)
+    // 기본 주파수 추정 (가장 강한 저주파 찾기)
     let maxMagnitude = 0;
     let fundamentalFreq = 0;
-    for (let i = 10; i < spectrum.length / 2; i++) {
-      // 너무 낮은 주파수 제외
-      if (spectrum[i] > maxMagnitude) {
-        maxMagnitude = spectrum[i];
-        fundamentalFreq = (i * audioBuffer.sampleRate) / fftSize;
+
+    // 80-800Hz 범위에서만 찾기 (음성 범위)
+    for (let i = 0; i < freqBands.length; i++) {
+      if (freqBands[i] >= 80 && freqBands[i] <= 800) {
+        if (spectrum[i] > maxMagnitude) {
+          maxMagnitude = spectrum[i];
+          fundamentalFreq = freqBands[i];
+        }
       }
     }
 
-    // 특징 계산
-    const centroid = calculateSpectralCentroid(spectrum, audioBuffer.sampleRate);
+    // 특징 계산 (간단한 근사치 사용)
+    const centroid = calculateSimpleSpectralCentroid(spectrum, freqBands);
     const zcr = calculateZeroCrossingRate(segment);
-    const rolloff = calculateSpectralRolloff(spectrum, audioBuffer.sampleRate);
+    const rolloff = calculateSimpleSpectralRolloff(spectrum, freqBands);
     const rms = calculateRMS(segment);
-    const hnr = calculateHNR(spectrum, fundamentalFreq, audioBuffer.sampleRate);
+    const hnr = calculateSimpleHNR(spectrum, fundamentalFreq, freqBands);
     const flatness = calculateSpectralFlatness(spectrum);
 
     totalCentroid += centroid;
@@ -481,13 +478,10 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
 
     // 피치 트래킹
     if (fundamentalFreq > 0 && fundamentalFreq >= 80 && fundamentalFreq <= 800) {
-      // 세미톤 단위 (음역대 계산용)
       const semitone = 12 * Math.log2(fundamentalFreq / 440);
       pitchTrack.push(semitone);
       minPitch = Math.min(minPitch, semitone);
       maxPitch = Math.max(maxPitch, semitone);
-
-      // Hz 단위 (Jitter 계산용)
       frequencyTrack.push(fundamentalFreq);
     }
 
@@ -551,8 +545,6 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
       },
     });
   }
-
-  await audioContext.close();
 
   return {
     brightness,
