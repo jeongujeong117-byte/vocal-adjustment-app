@@ -277,8 +277,22 @@ function detectVibrato(pitchTrack: number[]): {
 function calculateJitter(frequencyTrack: number[]): number {
   if (frequencyTrack.length < 2) return 0;
 
+  // 안전 장치: 유효한 주파수 범위 (50Hz ~ 1000Hz)
+  const MIN_FREQ = 50;
+  const MAX_FREQ = 1000;
+
   // 주파수를 주기(period)로 변환: period = 1 / frequency
-  const periods: number[] = frequencyTrack.map(f => f > 0 ? 1 / f : 0).filter(p => p > 0);
+  const periods: number[] = [];
+
+  for (const f of frequencyTrack) {
+    if (f >= MIN_FREQ && f <= MAX_FREQ) {
+      const period = 1 / f;
+      // 안전 장치: 주기가 유효한지 확인
+      if (isFinite(period) && period > 0 && period < 1) {
+        periods.push(period);
+      }
+    }
+  }
 
   if (periods.length < 2) return 0;
 
@@ -292,7 +306,10 @@ function calculateJitter(frequencyTrack: number[]): number {
   const avgPeriod = periods.reduce((a, b) => a + b, 0) / periods.length;
 
   // Jitter (%) = (평균 절대 차이 / 평균 주기) * 100
-  return avgPeriod > 0 ? (avgAbsDiff / avgPeriod) * 100 : 0;
+  const jitter = avgPeriod > 0 ? (avgAbsDiff / avgPeriod) * 100 : 0;
+
+  // 안전 장치: Jitter가 비정상적으로 크면 제한 (최대 20%)
+  return Math.min(jitter, 20);
 }
 
 /**
@@ -306,13 +323,23 @@ function calculateShimmer(rmsTrack: number[]): number {
   // RMS 값들을 dB로 변환하여 차이 계산
   let sumAbsDiff = 0;
   let validDiffs = 0;
+  const MIN_RMS = 1e-10; // 최소 RMS 임계값
 
   for (let i = 1; i < rmsTrack.length; i++) {
-    if (rmsTrack[i] > 0 && rmsTrack[i - 1] > 0) {
-      // dB 차이 = 20 * log10(rms1 / rms2)
-      const dbDiff = Math.abs(20 * Math.log10(rmsTrack[i] / rmsTrack[i - 1]));
-      sumAbsDiff += dbDiff;
-      validDiffs++;
+    // 안전 장치: RMS가 너무 작으면 건너뛰기
+    if (rmsTrack[i] > MIN_RMS && rmsTrack[i - 1] > MIN_RMS) {
+      const ratio = rmsTrack[i] / rmsTrack[i - 1];
+
+      // 안전 장치: 비율이 극단적이면 건너뛰기 (100배 이상 차이)
+      if (ratio > 0.01 && ratio < 100) {
+        const dbDiff = Math.abs(20 * Math.log10(ratio));
+
+        // 안전 장치: dB 차이가 유효한지 확인
+        if (isFinite(dbDiff) && dbDiff < 100) {
+          sumAbsDiff += dbDiff;
+          validDiffs++;
+        }
+      }
     }
   }
 
@@ -493,33 +520,34 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
   const pitchRange = maxPitch !== -Infinity ? maxPitch - minPitch : 0;
 
   // 디버그 로깅: 실제 측정값 출력 (개발 모드)
-  // Vite 환경에서는 import.meta.env.DEV를 사용
+  // 성능 최적화: 단일 객체로 로깅
   if (import.meta.env.DEV) {
-    console.group('🎵 음성 분석 측정값 (Voice Analysis Debug)');
-    console.log('📊 기본 측정값:');
-    console.log(`  - Spectral Centroid: ${avgCentroid.toFixed(2)} Hz`);
-    console.log(`  - Zero Crossing Rate: ${avgZCR.toFixed(4)}`);
-    console.log(`  - Spectral Rolloff: ${avgRolloff.toFixed(2)} Hz`);
-    console.log(`  - RMS Energy: ${avgRMS.toFixed(6)}`);
-    console.log(`  - Dynamic Range: ${dynamicRange.toFixed(2)} dB`);
-    console.log('');
-    console.log('🎼 고급 음성 측정값:');
-    console.log(`  - HNR (원본): ${avgHNR.toFixed(2)} dB (정상: 10-25 dB)`);
-    console.log(`  - Harmonicity (정규화): ${(harmonicity * 100).toFixed(1)}%`);
-    console.log(`  - Spectral Flatness: ${avgFlatness.toFixed(4)} (0=톤, 1=노이즈)`);
-    console.log(`  - Jitter: ${jitter.toFixed(2)}% (정상: 0.5-0.6%)`);
-    console.log(`  - Shimmer: ${shimmer.toFixed(2)} dB (정상: 0.19-0.22 dB)`);
-    console.log(`  - Attack Time: ${attackTime.toFixed(2)} ms`);
-    console.log(`  - Pitch Range: ${pitchRange.toFixed(2)} semitones`);
-    console.log(`  - Vibrato Rate: ${vibrato.rate ? vibrato.rate.toFixed(2) + ' Hz' : 'None'}`);
-    console.log(`  - Vibrato Extent: ${vibrato.extent.toFixed(2)} semitones`);
-    console.log('');
-    console.log('📈 정규화된 특징값 (0-1):');
-    console.log(`  - Brightness: ${(brightness * 100).toFixed(1)}%`);
-    console.log(`  - Roughness: ${(roughness * 100).toFixed(1)}%`);
-    console.log(`  - Clarity: ${(clarity * 100).toFixed(1)}%`);
-    console.log(`  - Richness: ${(richness * 100).toFixed(1)}%`);
-    console.groupEnd();
+    console.log('🎵 음성 분석 측정값', {
+      '기본 측정값': {
+        'Spectral Centroid': `${avgCentroid.toFixed(2)} Hz`,
+        'Zero Crossing Rate': avgZCR.toFixed(4),
+        'Spectral Rolloff': `${avgRolloff.toFixed(2)} Hz`,
+        'RMS Energy': avgRMS.toFixed(6),
+        'Dynamic Range': `${dynamicRange.toFixed(2)} dB`,
+      },
+      '고급 음성 측정값': {
+        'HNR (원본)': `${avgHNR.toFixed(2)} dB (정상: 10-25 dB)`,
+        'Harmonicity (정규화)': `${(harmonicity * 100).toFixed(1)}%`,
+        'Spectral Flatness': `${avgFlatness.toFixed(4)} (0=톤, 1=노이즈)`,
+        'Jitter': `${jitter.toFixed(2)}% (정상: 0.5-0.6%)`,
+        'Shimmer': `${shimmer.toFixed(2)} dB (정상: 0.19-0.22 dB)`,
+        'Attack Time': `${attackTime.toFixed(2)} ms`,
+        'Pitch Range': `${pitchRange.toFixed(2)} semitones`,
+        'Vibrato Rate': vibrato.rate ? `${vibrato.rate.toFixed(2)} Hz` : 'None',
+        'Vibrato Extent': `${vibrato.extent.toFixed(2)} semitones`,
+      },
+      '정규화된 특징값': {
+        Brightness: `${(brightness * 100).toFixed(1)}%`,
+        Roughness: `${(roughness * 100).toFixed(1)}%`,
+        Clarity: `${(clarity * 100).toFixed(1)}%`,
+        Richness: `${(richness * 100).toFixed(1)}%`,
+      },
+    });
   }
 
   await audioContext.close();
