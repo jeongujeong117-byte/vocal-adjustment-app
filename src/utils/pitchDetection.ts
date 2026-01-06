@@ -50,8 +50,8 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
   }
   rms = Math.sqrt(rms / SIZE);
 
-  // 너무 조용하면 -1 반환
-  if (rms < 0.01) return -1;
+  // 너무 조용하면 -1 반환 (임계값 상향으로 노이즈 제거)
+  if (rms < 0.05) return -1;
 
   // 자기상관 계산
   let lastCorrelation = 1;
@@ -62,7 +62,8 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
     }
     correlation = 1 - correlation / MAX_SAMPLES;
 
-    if (correlation > 0.9 && correlation > lastCorrelation) {
+    // 더 높은 신뢰도 요구 (0.9 → 0.92)
+    if (correlation > 0.92 && correlation > lastCorrelation) {
       const foundGoodCorrelation = correlation > bestCorrelation;
       if (foundGoodCorrelation) {
         bestCorrelation = correlation;
@@ -102,7 +103,9 @@ export function detectPitch(
     const buffer = channelData.slice(i, i + windowSize);
     const frequency = autoCorrelate(buffer, sampleRate);
 
-    if (frequency > 0 && frequency >= 80 && frequency <= 1200) {
+    // 주파수 범위 축소 (1200Hz → 800Hz, E2 ~ G#5)
+    // 일반인 음역대에 맞게 조정
+    if (frequency > 0 && frequency >= 80 && frequency <= 800) {
       const midi = frequencyToNote(frequency);
       const note = midiToNote(midi);
       results.push({
@@ -119,6 +122,7 @@ export function detectPitch(
 
 /**
  * 피치 검출 결과에서 음역대 추출
+ * Percentile 방식으로 아웃라이어 제거
  */
 export function extractVocalRange(results: PitchDetectionResult[]): {
   low: number;
@@ -129,11 +133,24 @@ export function extractVocalRange(results: PitchDetectionResult[]): {
     throw new Error('No pitch detected');
   }
 
-  const notes = results.map((r) => r.note);
-  const low = Math.min(...notes);
-  const high = Math.max(...notes);
+  const notes = results.map((r) => r.note).sort((a, b) => a - b);
 
-  return { low, high, detectedNotes: notes };
+  // 아웃라이어 제거: 하위 5%, 상위 5% 제거
+  const percentile5 = Math.floor(notes.length * 0.05);
+  const percentile95 = Math.ceil(notes.length * 0.95);
+  const filteredNotes = notes.slice(percentile5, percentile95);
+
+  if (filteredNotes.length === 0) {
+    // 폴백: 필터링 후 비어있으면 원본 사용
+    const low = Math.min(...notes);
+    const high = Math.max(...notes);
+    return { low, high, detectedNotes: notes };
+  }
+
+  const low = Math.min(...filteredNotes);
+  const high = Math.max(...filteredNotes);
+
+  return { low, high, detectedNotes: filteredNotes };
 }
 
 /**
@@ -172,7 +189,8 @@ export class RealTimePitchDetector {
 
     const frequency = autoCorrelate(buffer, this.audioContext.sampleRate);
 
-    if (frequency > 0 && frequency >= 80 && frequency <= 1200) {
+    // 주파수 범위 축소 (실시간도 동일하게 적용)
+    if (frequency > 0 && frequency >= 80 && frequency <= 800) {
       const midi = frequencyToNote(frequency);
       const note = midiToNote(midi);
 

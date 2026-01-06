@@ -33,83 +33,98 @@ function App() {
     : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 animate-gradient">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* 헤더 */}
-        <header className="text-center mb-12">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-3">
+        <header className="text-center mb-12 animate-slideUp">
+          <h1 className="text-6xl font-bold gradient-text mb-4">
             🎤 내 음역대 찾기
           </h1>
-          <p className="text-gray-600 text-lg">
-            나에게 딱 맞는 노래를 찾아드릴게요!
+          <p className="text-gray-700 text-xl font-medium">
+            나에게 딱 맞는 노래를 찾아드릴게요! ✨
           </p>
         </header>
 
         {/* Step 1: 시작 화면 - 분석 타입 선택 */}
         {step === 'start' && (
-          <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-              <div className="text-6xl mb-6">🎵</div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-4">
+          <div className="space-y-8 animate-fadeIn">
+            <div className="bg-white rounded-3xl shadow-2xl p-10 text-center hover-lift">
+              <div className="text-8xl mb-6 animate-bounce-slow">🎵</div>
+              <h2 className="text-4xl font-bold text-gray-800 mb-4">
                 어떤 분석을 원하시나요?
               </h2>
-              <p className="text-gray-600 mb-8 text-lg">
+              <p className="text-gray-600 mb-8 text-xl">
                 음역대와 음색, 원하는 분석을 선택하세요
               </p>
             </div>
 
             {/* 분석 타입 카드 */}
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-8">
               {/* 음역대 분석 */}
               <div
                 onClick={() => setStep('measuring-range')}
-                className="bg-gradient-to-br from-blue-50 to-indigo-100 border-2 border-blue-300 rounded-2xl p-8 cursor-pointer hover:shadow-xl transform hover:scale-105 transition-all"
+                className="bg-gradient-to-br from-blue-100 to-indigo-200 border-4 border-blue-400 rounded-3xl p-10 cursor-pointer hover-lift hover:border-blue-500 transition-all duration-300 relative overflow-hidden group"
               >
-                <div className="text-5xl mb-4">🎼</div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-3">
-                  음역대 분석
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  내 최저음/최고음을 측정하고<br />
-                  부를 수 있는 노래를 추천받아요
-                </p>
-                <ul className="text-sm text-gray-600 space-y-1 text-left">
-                  <li>• 음역대 측정 (예: E2 ~ E4)</li>
-                  <li>• 비슷한 가수 찾기</li>
-                  <li>• 노래 키 조절 가이드</li>
-                </ul>
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-indigo-400/10 animate-shimmer"></div>
+                <div className="relative">
+                  <div className="text-7xl mb-4 animate-float">🎼</div>
+                  <h3 className="text-3xl font-extrabold text-gray-900 mb-4">
+                    음역대 분석
+                  </h3>
+                  <p className="text-gray-700 mb-5 text-lg font-medium">
+                    내 최저음/최고음을 측정하고<br />
+                    부를 수 있는 노래를 추천받아요
+                  </p>
+                  <ul className="text-base text-gray-700 space-y-2 text-left font-medium">
+                    <li>✨ 음역대 측정 (예: E2 ~ E4)</li>
+                    <li>🎤 비슷한 가수 찾기</li>
+                    <li>🎹 노래 키 조절 가이드</li>
+                  </ul>
+                </div>
               </div>
 
               {/* 음색 & 장르 분석 */}
               <div
                 onClick={() => setStep('measuring-timbre')}
-                className="bg-gradient-to-br from-pink-50 to-purple-100 border-2 border-pink-300 rounded-2xl p-8 cursor-pointer hover:shadow-xl transform hover:scale-105 transition-all"
+                className="bg-gradient-to-br from-pink-100 to-purple-200 border-4 border-pink-400 rounded-3xl p-10 cursor-pointer hover-lift hover:border-pink-500 transition-all duration-300 relative overflow-hidden group"
               >
-                <div className="text-5xl mb-4">🎨</div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-3">
-                  음색 & 장르 분석
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  목소리 특징을 분석하고<br />
-                  어울리는 장르를 추천받아요
-                </p>
-                <ul className="text-sm text-gray-600 space-y-1 text-left">
-                  <li>• 음색 프로필 (밝기, 질감)</li>
-                  <li>• 보컬 스타일 분석</li>
-                  <li>• 장르 추천 (팝, 발라드 등)</li>
-                </ul>
+                <div className="absolute inset-0 bg-gradient-to-r from-pink-400/10 to-purple-400/10 animate-shimmer"></div>
+                <div className="relative">
+                  <div className="text-7xl mb-4 animate-float" style={{animationDelay: '0.5s'}}>🎨</div>
+                  <h3 className="text-3xl font-extrabold text-gray-900 mb-4">
+                    음색 & 장르 분석
+                  </h3>
+                  <p className="text-gray-700 mb-5 text-lg font-medium">
+                    목소리 특징을 분석하고<br />
+                    어울리는 장르를 추천받아요
+                  </p>
+                  <ul className="text-base text-gray-700 space-y-2 text-left font-medium">
+                    <li>✨ 음색 프로필 (밝기, 질감)</li>
+                    <li>🎵 보컬 스타일 분석</li>
+                    <li>🎧 장르 추천 (팝, 발라드 등)</li>
+                  </ul>
+                </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-6">
-              <h3 className="font-bold text-yellow-900 mb-3 flex items-center gap-2">
-                <span className="text-2xl">💡</span>
+            <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border-3 border-yellow-400 rounded-2xl p-8 shadow-lg animate-scale-in">
+              <h3 className="font-bold text-yellow-900 mb-4 flex items-center gap-2 text-xl">
+                <span className="text-3xl animate-pulse-slow">💡</span>
                 측정 팁
               </h3>
-              <ul className="space-y-2 text-yellow-800">
-                <li>• 조용한 곳에서 측정해주세요</li>
-                <li>• "아~" 소리를 내면서 자연스럽게 노래해보세요</li>
-                <li>• 최소 5~10초 이상 녹음하면 정확해요</li>
+              <ul className="space-y-3 text-yellow-900 text-lg">
+                <li className="flex items-center gap-2">
+                  <span className="text-xl">🔇</span>
+                  <span>조용한 곳에서 측정해주세요</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-xl">🎵</span>
+                  <span>"아~" 소리를 내면서 자연스럽게 노래해보세요</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-xl">⏱️</span>
+                  <span>최소 5~10초 이상 녹음하면 정확해요</span>
+                </li>
               </ul>
             </div>
           </div>
@@ -157,14 +172,14 @@ function App() {
 
         {/* Step 3-1: 음색 결과 화면 */}
         {step === 'timbre-result' && timbreProfile && vocalStyle && (
-          <div className="space-y-6 animate-fadeIn">
+          <div className="space-y-8 animate-fadeIn">
             <TimbreResult profile={timbreProfile} style={vocalStyle} />
 
             {/* 다음 단계 버튼 */}
             <div className="flex gap-4">
               <button
                 onClick={() => setStep('start')}
-                className="flex-1 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-full hover:shadow-lg transform hover:scale-105 transition-all"
+                className="flex-1 btn-primary"
               >
                 다시 분석하기 →
               </button>
@@ -174,36 +189,39 @@ function App() {
 
         {/* Step 3-2: 음역대 결과 화면 */}
         {step === 'range-result' && userRange && (
-          <div className="space-y-6 animate-fadeIn">
+          <div className="space-y-8 animate-fadeIn">
             {/* 음역대 결과 */}
-            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-              <div className="text-6xl mb-4">🎉</div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">
+            <div className="bg-white rounded-3xl shadow-2xl p-12 text-center hover-lift relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 animate-shimmer"></div>
+              <div className="text-8xl mb-6 animate-bounce-slow">🎉</div>
+              <h2 className="text-4xl font-bold text-gray-800 mb-6">
                 당신의 음역대에요!
               </h2>
-              <div className="text-5xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent my-6">
+              <div className="text-6xl font-extrabold gradient-text my-8 neon-glow">
                 {numberToNote(userRange.low)} ~ {numberToNote(userRange.high)}
               </div>
-              <p className="text-xl text-gray-600 mb-4">{vocalType}</p>
+              <p className="text-2xl text-gray-700 font-semibold mb-4">{vocalType}</p>
             </div>
 
             {/* 시각화 */}
             <VocalRangeVisualizer userRange={userRange} detectedRange={null} />
 
             {/* 유사 가수 */}
-            <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl shadow-lg p-8">
-              <h3 className="text-2xl font-bold text-gray-800 mb-4 text-center">
-                🌟 이 가수들과 음역대가 비슷해요!
+            <div className="bg-gradient-to-r from-purple-200 to-pink-200 rounded-3xl shadow-xl p-10">
+              <h3 className="text-3xl font-extrabold text-gray-900 mb-6 text-center flex items-center justify-center gap-2">
+                <span className="text-4xl animate-pulse-slow">🌟</span>
+                이 가수들과 음역대가 비슷해요!
               </h3>
-              <div className="grid grid-cols-3 gap-4">
-                {similarArtists.map((artist) => (
+              <div className="grid grid-cols-3 gap-6">
+                {similarArtists.map((artist, index) => (
                   <div
                     key={artist.name}
-                    className="bg-white rounded-xl p-4 text-center shadow-md hover:shadow-lg transition-shadow"
+                    className="bg-white rounded-2xl p-6 text-center shadow-lg hover-lift animate-scale-in"
+                    style={{animationDelay: `${index * 0.1}s`}}
                   >
-                    <div className="text-3xl mb-2">🎤</div>
-                    <p className="font-bold text-lg text-gray-800">{artist.name}</p>
-                    <p className="text-sm text-gray-500">{artist.similarity}% 유사</p>
+                    <div className="text-4xl mb-3 animate-float" style={{animationDelay: `${index * 0.3}s`}}>🎤</div>
+                    <p className="font-extrabold text-xl text-gray-900 mb-2">{artist.name}</p>
+                    <p className="text-base text-purple-600 font-bold">{artist.similarity}% 유사</p>
                   </div>
                 ))}
               </div>
@@ -213,18 +231,18 @@ function App() {
             <RangeDetails range={userRange} title="상세 음역대 분석" />
 
             {/* 다음 단계 버튼 */}
-            <div className="flex gap-4">
+            <div className="flex gap-6">
               <button
                 onClick={() => setStep('songs')}
-                className="flex-1 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-full hover:shadow-lg transform hover:scale-105 transition-all"
+                className="flex-1 btn-primary text-2xl"
               >
-                추천 노래 보기 →
+                🎵 추천 노래 보기
               </button>
               <button
                 onClick={() => setStep('start')}
-                className="px-8 py-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-full transition-colors"
+                className="px-10 py-5 bg-gradient-to-r from-gray-300 to-gray-400 hover:from-gray-400 hover:to-gray-500 text-gray-800 text-xl font-bold rounded-full transition-all duration-300 hover:shadow-lg transform hover:scale-105"
               >
-                다시 측정
+                🔄 다시 측정
               </button>
             </div>
           </div>
@@ -232,39 +250,41 @@ function App() {
 
         {/* Step 4: 노래 추천 */}
         {step === 'songs' && userRange && (
-          <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center">
+          <div className="space-y-8 animate-fadeIn">
+            <div className="bg-white rounded-3xl shadow-2xl p-10">
+              <h2 className="text-4xl font-extrabold text-gray-900 mb-4 text-center flex items-center justify-center gap-3">
+                <span className="text-5xl animate-pulse-slow">🎵</span>
                 추천 노래 목록
               </h2>
-              <p className="text-gray-600 text-center mb-6">
+              <p className="text-gray-700 text-center mb-8 text-xl font-medium">
                 당신의 음역대에 딱 맞는 노래들이에요!
               </p>
 
-              <div className="space-y-3">
-                {recommendations.slice(0, 10).map((rec) => (
+              <div className="space-y-4">
+                {recommendations.slice(0, 10).map((rec, index) => (
                   <div
                     key={rec.song.id}
-                    className={`p-4 rounded-xl border-2 transition-all hover:shadow-md ${
+                    className={`p-6 rounded-2xl border-3 transition-all hover-lift animate-scale-in ${
                       rec.isInRange
-                        ? 'border-green-400 bg-green-50'
-                        : 'border-blue-300 bg-blue-50'
+                        ? 'border-green-400 bg-gradient-to-r from-green-50 to-emerald-100'
+                        : 'border-blue-400 bg-gradient-to-r from-blue-50 to-indigo-100'
                     }`}
+                    style={{animationDelay: `${index * 0.05}s`}}
                   >
                     <div className="flex justify-between items-center">
                       <div>
-                        <h3 className="text-lg font-bold text-gray-800">
+                        <h3 className="text-xl font-extrabold text-gray-900 mb-1">
                           {rec.song.title}
                         </h3>
-                        <p className="text-sm text-gray-600">{rec.song.artist}</p>
+                        <p className="text-base text-gray-600 font-medium">{rec.song.artist}</p>
                       </div>
                       <div className="text-right">
                         {rec.isInRange ? (
-                          <span className="inline-block px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-full">
-                            조정 불필요! ✨
+                          <span className="inline-block px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-lg font-extrabold rounded-full shadow-lg">
+                            완벽! ✨
                           </span>
                         ) : (
-                          <span className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-full">
+                          <span className="inline-block px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-lg font-extrabold rounded-full shadow-lg">
                             {rec.adjustment > 0 ? `+${rec.adjustment}` : rec.adjustment}키
                           </span>
                         )}
@@ -276,24 +296,25 @@ function App() {
             </div>
 
             {/* 노래 검색으로 이동 */}
-            <div className="bg-gradient-to-r from-indigo-100 to-purple-100 rounded-2xl shadow-lg p-8 text-center">
-              <h3 className="text-2xl font-bold text-gray-800 mb-3">
+            <div className="bg-gradient-to-r from-indigo-200 to-purple-200 rounded-3xl shadow-xl p-10 text-center hover-lift">
+              <div className="text-5xl mb-4 animate-bounce-slow">🔍</div>
+              <h3 className="text-3xl font-extrabold text-gray-900 mb-4">
                 부르고 싶은 노래가 따로 있나요?
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-700 mb-6 text-lg font-medium">
                 원하는 노래를 검색하면 음 조절을 도와드릴게요!
               </p>
               <button
                 onClick={() => setStep('search')}
-                className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full hover:bg-indigo-700 transition-colors"
+                className="px-10 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xl font-extrabold rounded-full hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
               >
-                노래 검색하기 →
+                🔍 노래 검색하기
               </button>
             </div>
 
             <button
               onClick={() => setStep('range-result')}
-              className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
+              className="w-full px-8 py-4 bg-gradient-to-r from-gray-300 to-gray-400 hover:from-gray-400 hover:to-gray-500 text-gray-800 text-lg font-bold rounded-full transition-all duration-300 hover:shadow-lg"
             >
               ← 결과 화면으로
             </button>
@@ -302,25 +323,26 @@ function App() {
 
         {/* Step 5: 노래 검색 */}
         {step === 'search' && userRange && (
-          <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-                🔍 노래 검색
+          <div className="space-y-8 animate-fadeIn">
+            <div className="bg-white rounded-3xl shadow-2xl p-10">
+              <h2 className="text-4xl font-extrabold text-gray-900 mb-8 text-center flex items-center justify-center gap-3">
+                <span className="text-5xl animate-pulse-slow">🔍</span>
+                노래 검색
               </h2>
 
-              <div className="mb-6">
+              <div className="mb-8">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="노래 제목이나 가수 이름을 입력하세요"
-                  className="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-full focus:border-purple-500 focus:outline-none"
+                  placeholder="🎤 노래 제목이나 가수 이름을 입력하세요"
+                  className="w-full px-8 py-5 text-xl border-4 border-purple-300 rounded-full focus:border-purple-500 focus:outline-none shadow-lg transition-all duration-300 focus:shadow-2xl"
                 />
               </div>
 
               {searchQuery && filteredSongs.length > 0 ? (
-                <div className="space-y-3">
-                  {filteredSongs.map((song) => {
+                <div className="space-y-5">
+                  {filteredSongs.map((song, index) => {
                     const adjustment = recommendSongs(userRange, [song], {
                       maxAdjustment: 12,
                     })[0];
@@ -328,37 +350,36 @@ function App() {
                     return (
                       <div
                         key={song.id}
-                        className="p-4 rounded-xl border-2 border-purple-300 bg-purple-50 hover:shadow-md transition-all"
+                        className="p-6 rounded-2xl border-3 border-purple-400 bg-gradient-to-r from-purple-50 to-pink-50 hover-lift animate-scale-in"
+                        style={{animationDelay: `${index * 0.05}s`}}
                       >
                         <div className="flex justify-between items-center">
                           <div>
-                            <h3 className="text-lg font-bold text-gray-800">
+                            <h3 className="text-xl font-extrabold text-gray-900 mb-1">
                               {song.title}
                             </h3>
-                            <p className="text-sm text-gray-600">{song.artist}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              원곡: {numberToNote(song.range.low)} ~{' '}
-                              {numberToNote(song.range.high)}
+                            <p className="text-base text-gray-600 font-medium mb-2">{song.artist}</p>
+                            <p className="text-sm text-gray-500 font-medium">
+                              원곡: {numberToNote(song.range.low)} ~ {numberToNote(song.range.high)}
                             </p>
                           </div>
                           <div className="text-right">
                             {adjustment.isInRange ? (
                               <div>
-                                <span className="inline-block px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-full">
-                                  바로 부를 수 있어요! ✨
+                                <span className="inline-block px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-lg font-extrabold rounded-full shadow-lg">
+                                  완벽해요! ✨
                                 </span>
                               </div>
                             ) : (
                               <div>
-                                <span className="inline-block px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded-full mb-2">
+                                <span className="inline-block px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white text-lg font-extrabold rounded-full mb-3 shadow-lg">
                                   {adjustment.adjustment > 0
                                     ? `+${adjustment.adjustment}`
                                     : adjustment.adjustment}
                                   키 조절
                                 </span>
-                                <p className="text-xs text-gray-600">
-                                  조절 후: {numberToNote(adjustment.adjustedRange.low)} ~{' '}
-                                  {numberToNote(adjustment.adjustedRange.high)}
+                                <p className="text-sm text-gray-700 font-medium">
+                                  조절 후: {numberToNote(adjustment.adjustedRange.low)} ~ {numberToNote(adjustment.adjustedRange.high)}
                                 </p>
                               </div>
                             )}
@@ -369,19 +390,25 @@ function App() {
                   })}
                 </div>
               ) : searchQuery ? (
-                <p className="text-center text-gray-500 py-8">
-                  검색 결과가 없습니다. 다른 검색어로 시도해보세요.
-                </p>
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">🤔</div>
+                  <p className="text-gray-600 text-xl font-medium">
+                    검색 결과가 없습니다. 다른 검색어로 시도해보세요.
+                  </p>
+                </div>
               ) : (
-                <p className="text-center text-gray-400 py-8">
-                  검색어를 입력해주세요
-                </p>
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4 animate-pulse-slow">✨</div>
+                  <p className="text-gray-500 text-xl font-medium">
+                    검색어를 입력해주세요
+                  </p>
+                </div>
               )}
             </div>
 
             <button
               onClick={() => setStep('songs')}
-              className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
+              className="w-full px-8 py-4 bg-gradient-to-r from-gray-300 to-gray-400 hover:from-gray-400 hover:to-gray-500 text-gray-800 text-lg font-bold rounded-full transition-all duration-300 hover:shadow-lg"
             >
               ← 추천 노래로
             </button>
@@ -389,8 +416,15 @@ function App() {
         )}
 
         {/* 푸터 */}
-        <footer className="mt-12 text-center text-sm text-gray-500">
-          <p>음역대는 대략적인 값이며, 개인차가 있을 수 있습니다.</p>
+        <footer className="mt-16 text-center">
+          <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl p-6 shadow-lg">
+            <p className="text-gray-700 font-medium text-base">
+              💡 음역대는 대략적인 값이며, 개인차가 있을 수 있습니다.
+            </p>
+            <p className="text-gray-600 text-sm mt-2">
+              꾸준한 연습으로 음역대를 넓혀보세요! 🎵
+            </p>
+          </div>
         </footer>
       </div>
     </div>
