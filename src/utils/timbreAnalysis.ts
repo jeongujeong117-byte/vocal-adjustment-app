@@ -462,8 +462,9 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
   const roughness = Math.min(1, avgZCR * 10); // ZCR은 보통 0~0.1 범위
   const richness = Math.min(1, avgRolloff / 8000); // ~8kHz를 기준으로
 
-  // HNR 기반 clarity (HNR이 높을수록 깨끗함)
-  const clarity = Math.min(1, avgHNR / 30); // ~30dB를 기준으로
+  // Harmonicity는 HNR을 0~1로 정규화 (clarity와 동일 개념이므로 통합)
+  const harmonicity = Math.min(1, avgHNR / 40); // ~40dB를 최대로
+  const clarity = harmonicity; // 하위 호환성을 위해 유지 (harmonicity와 동일)
 
   const dynamicRange = 20 * Math.log10(maxRMS / (minRMS + 1e-10));
 
@@ -473,9 +474,6 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
   const shimmer = calculateShimmer(rmsTrack);
   const attackTime = calculateAttackTime(channelData, audioBuffer.sampleRate);
   const pitchRange = maxPitch !== -Infinity ? maxPitch - minPitch : 0;
-
-  // Harmonicity는 HNR을 0~1로 정규화
-  const harmonicity = Math.min(1, avgHNR / 40); // ~40dB를 최대로
 
   await audioContext.close();
 
@@ -508,9 +506,8 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
   const {
     brightness,
     roughness,
-    clarity,
     richness,
-    harmonicity,
+    harmonicity, // clarity와 동일하므로 harmonicity만 사용
     spectralFlatness,
     vibratoRate,
     vibratoExtent,
@@ -573,95 +570,250 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
     expressiveness = 'technical'; // 기술적이고 균형잡힌
   }
 
-  // 장르 추천 (다차원 분석)
+  // 장르 추천 (모든 지표를 종합적으로 활용)
   const suggestedGenres: VocalStyle['suggestedGenres'] = [];
 
-  // 클래식/뮤지컬 (높은 HNR + 비브라토 + 안정적)
-  if (harmonicity > 0.7 && hasVibrato && spectralFlatness < 0.2) {
-    suggestedGenres.push({
-      genre: '클래식/뮤지컬 (Classical/Musical)',
-      confidence: Math.min(0.95, (harmonicity + (hasVibrato ? 0.9 : 0) + (1 - spectralFlatness)) / 3),
-      reason: '맑은 음색과 안정적인 비브라토가 클래식 발성의 특징이에요',
-    });
+  // 클래식/뮤지컬: 매우 깨끗 + 비브라토 + 안정적 + 넓은 음역
+  if (harmonicity > 0.65 || (hasVibrato && spectralFlatness < 0.25)) {
+    const scores = {
+      harmonicity: harmonicity > 0.7 ? 1.0 : harmonicity > 0.6 ? 0.7 : 0.4,
+      vibrato: hasVibrato && vibratoExtent > 0.4 ? 1.0 : hasVibrato ? 0.6 : 0.2,
+      flatness: spectralFlatness < 0.15 ? 1.0 : spectralFlatness < 0.25 ? 0.7 : 0.3,
+      stability: (jitter < 0.8 && shimmer < 4) ? 1.0 : 0.5,
+      range: pitchRange > 18 ? 1.0 : pitchRange > 12 ? 0.7 : 0.4,
+    };
+
+    const confidence = (scores.harmonicity * 0.3 + scores.vibrato * 0.25 +
+                       scores.flatness * 0.2 + scores.stability * 0.15 + scores.range * 0.1);
+
+    if (confidence > 0.5) {
+      const reasons = [];
+      if (scores.harmonicity > 0.7) reasons.push(`매우 맑은 음성 (${(harmonicity * 100).toFixed(0)}%)`);
+      if (scores.vibrato > 0.6) reasons.push(`비브라토 ${vibratoRate?.toFixed(1)}Hz`);
+      if (scores.flatness > 0.7) reasons.push(`음악적 톤`);
+      if (scores.stability > 0.7) reasons.push(`안정적 (J${jitter.toFixed(1)}%)`);
+
+      suggestedGenres.push({
+        genre: '클래식/뮤지컬 (Classical/Musical)',
+        confidence: Math.min(0.95, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '클래식 발성의 특징을 가지고 있어요',
+      });
+    }
   }
 
-  // 발라드 (감정적 표현 + 넓은 다이내믹 + 비브라토)
-  if ((jitter > 0.8 || shimmer > 2.5) && dynamicRange > 10 && pitchRange > 12) {
-    suggestedGenres.push({
-      genre: '발라드 (Ballad)',
-      confidence: Math.min(0.95, ((jitter + shimmer / 3) * 0.1 + dynamicRange / 20 + pitchRange / 30)),
-      reason: '풍부한 감정 표현과 다이내믹이 발라드에 완벽해요',
-    });
+  // 발라드: 감정적 표현 + 넓은 다이내믹 + 비브라토 + 음역대
+  if (dynamicRange > 8 || jitter > 0.8 || shimmer > 2) {
+    const scores = {
+      emotion: (jitter > 1.5 || shimmer > 4) ? 1.0 : (jitter > 0.8 || shimmer > 2.5) ? 0.8 : 0.5,
+      dynamics: dynamicRange > 15 ? 1.0 : dynamicRange > 10 ? 0.8 : dynamicRange > 8 ? 0.5 : 0.3,
+      range: pitchRange > 18 ? 1.0 : pitchRange > 12 ? 0.8 : 0.5,
+      vibrato: hasVibrato ? (vibratoExtent > 0.5 ? 1.0 : 0.7) : 0.4,
+      clarity: harmonicity > 0.5 ? 0.9 : 0.6,
+    };
+
+    const confidence = (scores.emotion * 0.3 + scores.dynamics * 0.25 + scores.range * 0.2 +
+                       scores.vibrato * 0.15 + scores.clarity * 0.1);
+
+    if (confidence > 0.5) {
+      const reasons = [];
+      if (scores.emotion > 0.7) reasons.push(`감정 표현 (J${jitter.toFixed(1)}% S${shimmer.toFixed(1)}%)`);
+      if (scores.dynamics > 0.7) reasons.push(`다이내믹 ${dynamicRange.toFixed(1)}dB`);
+      if (scores.range > 0.7) reasons.push(`음역 ${pitchRange.toFixed(0)}st`);
+      if (scores.vibrato > 0.6 && hasVibrato) reasons.push(`비브라토`);
+
+      suggestedGenres.push({
+        genre: '발라드 (Ballad)',
+        confidence: Math.min(0.95, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '풍부한 감정 표현이 발라드에 적합해요',
+      });
+    }
   }
 
-  // 팝 (밝고 깨끗 + 중간 비브라토 + 넓은 음역)
-  if (brightness > 0.6 && clarity > 0.6 && pitchRange > 15) {
-    const vibratoScore = hasVibrato && vibratoExtent < 0.8 ? 0.9 : 0.7; // 적당한 비브라토 선호
-    suggestedGenres.push({
-      genre: '팝 (Pop)',
-      confidence: Math.min(0.95, (brightness + clarity + vibratoScore) / 3),
-      reason: '밝고 맑은 음색이 경쾌한 팝 음악과 잘 어울려요',
-    });
+  // 팝: 밝고 깨끗 + 적당한 비브라토 + 넓은 음역 + 안정적
+  if (harmonicity > 0.45 || brightness > 0.55) {
+    const scores = {
+      brightness: brightness > 0.65 ? 1.0 : brightness > 0.55 ? 0.8 : 0.5,
+      clarity: harmonicity > 0.65 ? 1.0 : harmonicity > 0.5 ? 0.8 : 0.5,
+      range: pitchRange > 18 ? 1.0 : pitchRange > 15 ? 0.8 : pitchRange > 12 ? 0.6 : 0.4,
+      vibrato: hasVibrato ? (vibratoExtent < 0.8 ? 1.0 : 0.7) : 0.6, // 적당한 비브라토 선호
+      attack: attackTime < 80 ? 0.9 : attackTime < 100 ? 0.7 : 0.5,
+    };
+
+    const confidence = (scores.brightness * 0.25 + scores.clarity * 0.25 + scores.range * 0.2 +
+                       scores.vibrato * 0.15 + scores.attack * 0.15);
+
+    if (confidence > 0.5) {
+      const reasons = [];
+      if (scores.brightness > 0.7) reasons.push(`밝은 음색 ${(brightness * 100).toFixed(0)}%`);
+      if (scores.clarity > 0.7) reasons.push(`깨끗함 ${(harmonicity * 100).toFixed(0)}%`);
+      if (scores.range > 0.7) reasons.push(`넓은 음역 ${pitchRange.toFixed(0)}st`);
+
+      suggestedGenres.push({
+        genre: '팝 (Pop)',
+        confidence: Math.min(0.95, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '밝고 맑은 음색이 팝에 적합해요',
+      });
+    }
   }
 
-  // R&B/소울 (어둡고 풍부 + 감정적 표현)
-  if (brightness < 0.4 && richness > 0.5 && (jitter > 1 || shimmer > 3)) {
-    suggestedGenres.push({
-      genre: 'R&B/소울 (R&B/Soul)',
-      confidence: Math.min(0.95, ((1 - brightness) + richness + (jitter + shimmer / 3) * 0.1) / 3),
-      reason: '깊고 풍부한 음색과 감정 표현이 R&B의 감성을 잘 살려요',
-    });
+  // R&B/소울: 어둡고 풍부 + 감정적 표현 + 느린 어택
+  if (brightness < 0.5 || richness > 0.5 || (jitter > 1 && shimmer > 3)) {
+    const scores = {
+      darkness: brightness < 0.35 ? 1.0 : brightness < 0.45 ? 0.8 : 0.5,
+      richness: richness > 0.6 ? 1.0 : richness > 0.5 ? 0.8 : 0.5,
+      emotion: (jitter > 1.5 || shimmer > 4) ? 1.0 : (jitter > 1 || shimmer > 3) ? 0.8 : 0.5,
+      dynamics: dynamicRange > 12 ? 1.0 : dynamicRange > 10 ? 0.7 : 0.5,
+      vibrato: hasVibrato ? (vibratoExtent > 0.5 ? 1.0 : 0.7) : 0.5,
+    };
+
+    const confidence = (scores.darkness * 0.2 + scores.richness * 0.25 + scores.emotion * 0.3 +
+                       scores.dynamics * 0.15 + scores.vibrato * 0.1);
+
+    if (confidence > 0.5) {
+      const reasons = [];
+      if (scores.darkness > 0.7) reasons.push(`깊은 음색`);
+      if (scores.richness > 0.7) reasons.push(`풍부함 ${(richness * 100).toFixed(0)}%`);
+      if (scores.emotion > 0.7) reasons.push(`감정 (J${jitter.toFixed(1)}%)`);
+
+      suggestedGenres.push({
+        genre: 'R&B/소울 (R&B/Soul)',
+        confidence: Math.min(0.95, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '깊고 감성적인 R&B 스타일이에요',
+      });
+    }
   }
 
-  // 록 (거칠고 강렬 + 빠른 어택 + 높은 Spectral Flatness)
-  if ((roughness > 0.5 || spectralFlatness > 0.4) && attackTime < 60 && dynamicRange > 12) {
-    suggestedGenres.push({
-      genre: '록 (Rock)',
-      confidence: Math.min(0.95, (roughness + spectralFlatness + (100 - attackTime) / 100 + dynamicRange / 20) / 4),
-      reason: '거칠고 강렬한 음색과 파워풀한 발성이 록에 적합해요',
-    });
+  // 록: 거칠고 강렬 + 빠른 어택 + 높은 에너지
+  if (spectralFlatness > 0.3 || roughness > 0.4 || attackTime < 70) {
+    const scores = {
+      roughness: roughness > 0.6 ? 1.0 : roughness > 0.45 ? 0.8 : 0.5,
+      flatness: spectralFlatness > 0.45 ? 1.0 : spectralFlatness > 0.35 ? 0.8 : 0.5,
+      attack: attackTime < 50 ? 1.0 : attackTime < 60 ? 0.8 : attackTime < 70 ? 0.6 : 0.3,
+      dynamics: dynamicRange > 15 ? 1.0 : dynamicRange > 12 ? 0.8 : 0.5,
+      power: (jitter > 1 || shimmer > 3) ? 0.8 : 0.5,
+    };
+
+    const confidence = (scores.roughness * 0.25 + scores.flatness * 0.2 + scores.attack * 0.25 +
+                       scores.dynamics * 0.2 + scores.power * 0.1);
+
+    if (confidence > 0.5) {
+      const reasons = [];
+      if (scores.roughness > 0.7) reasons.push(`거칠기 ${(roughness * 100).toFixed(0)}%`);
+      if (scores.attack > 0.7) reasons.push(`빠른 어택 ${attackTime.toFixed(0)}ms`);
+      if (scores.dynamics > 0.7) reasons.push(`파워풀 ${dynamicRange.toFixed(1)}dB`);
+
+      suggestedGenres.push({
+        genre: '록 (Rock)',
+        confidence: Math.min(0.95, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '강렬하고 파워풀한 록 스타일이에요',
+      });
+    }
   }
 
-  // 재즈 (따뜻하고 풍부 + 표현력 + 적당한 비브라토)
-  if (richness > 0.5 && clarity > 0.5 && dynamicRange > 10 && pitchRange > 12) {
-    suggestedGenres.push({
-      genre: '재즈 (Jazz)',
-      confidence: Math.min(0.95, (richness + clarity + dynamicRange / 20 + pitchRange / 30) / 4),
-      reason: '따뜻하고 풍부한 음색이 재즈의 감성을 잘 표현해요',
-    });
+  // 재즈: 풍부하고 표현력 + 다이내믹 + 비브라토
+  if (richness > 0.45 || (hasVibrato && dynamicRange > 10)) {
+    const scores = {
+      richness: richness > 0.6 ? 1.0 : richness > 0.5 ? 0.8 : 0.5,
+      clarity: harmonicity > 0.6 ? 1.0 : harmonicity > 0.5 ? 0.7 : 0.5,
+      dynamics: dynamicRange > 15 ? 1.0 : dynamicRange > 12 ? 0.8 : dynamicRange > 10 ? 0.6 : 0.4,
+      range: pitchRange > 18 ? 1.0 : pitchRange > 15 ? 0.8 : pitchRange > 12 ? 0.6 : 0.4,
+      vibrato: hasVibrato ? 1.0 : 0.4,
+    };
+
+    const confidence = (scores.richness * 0.25 + scores.clarity * 0.2 + scores.dynamics * 0.2 +
+                       scores.range * 0.2 + scores.vibrato * 0.15);
+
+    if (confidence > 0.5) {
+      const reasons = [];
+      if (scores.richness > 0.7) reasons.push(`풍부한 톤 ${(richness * 100).toFixed(0)}%`);
+      if (scores.dynamics > 0.7) reasons.push(`다이내믹 ${dynamicRange.toFixed(1)}dB`);
+      if (scores.vibrato > 0.7) reasons.push(`비브라토`);
+
+      suggestedGenres.push({
+        genre: '재즈 (Jazz)',
+        confidence: Math.min(0.95, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '풍부하고 표현력 있는 재즈 스타일이에요',
+      });
+    }
   }
 
-  // 힙합/랩 (높은 Spectral Flatness + 빠른 어택 + 리듬감)
-  if (spectralFlatness > 0.4 && attackTime < 50) {
-    suggestedGenres.push({
-      genre: '힙합/랩 (Hip-Hop/Rap)',
-      confidence: Math.min(0.9, (spectralFlatness + (100 - attackTime) / 100) / 2),
-      reason: '리드미컬하고 타악기적인 발성이 힙합 스타일에 잘 맞아요',
-    });
+  // 힙합/랩: 높은 Spectral Flatness + 매우 빠른 어택 + 리듬감
+  if (spectralFlatness > 0.35 || attackTime < 55) {
+    const scores = {
+      flatness: spectralFlatness > 0.5 ? 1.0 : spectralFlatness > 0.4 ? 0.8 : 0.5,
+      attack: attackTime < 40 ? 1.0 : attackTime < 50 ? 0.8 : attackTime < 60 ? 0.6 : 0.3,
+      stability: (jitter < 1 && shimmer < 4) ? 0.8 : 0.5,
+      rhythm: !hasVibrato ? 0.9 : 0.5, // 비브라토 없는 것이 힙합에 더 적합
+    };
+
+    const confidence = (scores.flatness * 0.35 + scores.attack * 0.35 + scores.stability * 0.15 + scores.rhythm * 0.15);
+
+    if (confidence > 0.45) {
+      const reasons = [];
+      if (scores.flatness > 0.7) reasons.push(`타악기적 ${(spectralFlatness * 100).toFixed(0)}%`);
+      if (scores.attack > 0.7) reasons.push(`빠른 어택 ${attackTime.toFixed(0)}ms`);
+      if (scores.rhythm > 0.7) reasons.push(`리듬감`);
+
+      suggestedGenres.push({
+        genre: '힙합/랩 (Hip-Hop/Rap)',
+        confidence: Math.min(0.9, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '리드미컬한 힙합 스타일이에요',
+      });
+    }
   }
 
-  // 어쿠스틱/포크 (중립적 + 안정적)
-  if (
-    brightness > 0.4 &&
-    brightness < 0.7 &&
-    clarity > 0.5 &&
-    jitter < 1 &&
-    shimmer < 3
-  ) {
-    suggestedGenres.push({
-      genre: '어쿠스틱/포크 (Acoustic/Folk)',
-      confidence: Math.min(0.9, (clarity + (1 - Math.abs(brightness - 0.55) * 2)) / 2),
-      reason: '자연스럽고 균형 잡힌 음색이 어쿠스틱 음악에 어울려요',
-    });
+  // 어쿠스틱/포크: 중립적 + 안정적 + 자연스러움
+  if ((brightness > 0.4 && brightness < 0.7) || (jitter < 1.2 && shimmer < 4 && harmonicity > 0.4)) {
+    const scores = {
+      balance: 1.0 - Math.abs(brightness - 0.55) * 2,
+      clarity: harmonicity > 0.6 ? 1.0 : harmonicity > 0.5 ? 0.8 : harmonicity > 0.4 ? 0.6 : 0.4,
+      stability: (jitter < 1 && shimmer < 3) ? 1.0 : (jitter < 1.5 && shimmer < 4) ? 0.7 : 0.5,
+      natural: (spectralFlatness < 0.3 && !hasVibrato) ? 0.9 : spectralFlatness < 0.35 ? 0.7 : 0.5,
+      attack: attackTime > 70 ? 1.0 : attackTime > 60 ? 0.7 : 0.5,
+    };
+
+    const confidence = (scores.balance * 0.25 + scores.clarity * 0.25 + scores.stability * 0.2 +
+                       scores.natural * 0.2 + scores.attack * 0.1);
+
+    if (confidence > 0.5) {
+      const reasons = [];
+      if (scores.balance > 0.7) reasons.push(`균형 잡힌 음색`);
+      if (scores.clarity > 0.7) reasons.push(`자연스러움 ${(harmonicity * 100).toFixed(0)}%`);
+      if (scores.stability > 0.7) reasons.push(`안정적`);
+
+      suggestedGenres.push({
+        genre: '어쿠스틱/포크 (Acoustic/Folk)',
+        confidence: Math.min(0.9, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '자연스러운 어쿠스틱 스타일이에요',
+      });
+    }
   }
 
-  // 댄스/일렉트로닉 (밝고 에너지 넘침 + 안정적)
-  if (brightness > 0.7 && attackTime < 60 && jitter < 0.8) {
-    suggestedGenres.push({
-      genre: '댄스/일렉트로닉 (Dance/Electronic)',
-      confidence: Math.min(0.9, (brightness + (100 - attackTime) / 100 + (1 - jitter / 2)) / 3),
-      reason: '에너지 넘치는 밝은 음색이 댄스 음악에 적합해요',
-    });
+  // 댄스/일렉트로닉: 밝고 에너지 + 안정적 + 빠른 어택
+  if (brightness > 0.6 || (attackTime < 65 && jitter < 1 && shimmer < 4)) {
+    const scores = {
+      brightness: brightness > 0.75 ? 1.0 : brightness > 0.65 ? 0.8 : 0.5,
+      attack: attackTime < 50 ? 1.0 : attackTime < 60 ? 0.8 : attackTime < 70 ? 0.6 : 0.3,
+      stability: (jitter < 0.8 && shimmer < 3) ? 1.0 : (jitter < 1 && shimmer < 4) ? 0.7 : 0.5,
+      energy: harmonicity > 0.6 ? 0.9 : 0.6,
+      rhythm: !hasVibrato ? 0.9 : hasVibrato && vibratoExtent < 0.4 ? 0.6 : 0.4,
+    };
+
+    const confidence = (scores.brightness * 0.3 + scores.attack * 0.25 + scores.stability * 0.2 +
+                       scores.energy * 0.15 + scores.rhythm * 0.1);
+
+    if (confidence > 0.5) {
+      const reasons = [];
+      if (scores.brightness > 0.7) reasons.push(`밝음 ${(brightness * 100).toFixed(0)}%`);
+      if (scores.attack > 0.7) reasons.push(`어택 ${attackTime.toFixed(0)}ms`);
+      if (scores.stability > 0.7) reasons.push(`안정적 (J${jitter.toFixed(1)}%)`);
+
+      suggestedGenres.push({
+        genre: '댄스/일렉트로닉 (Dance/Electronic)',
+        confidence: Math.min(0.9, confidence),
+        reason: reasons.length > 0 ? reasons.join(', ') : '에너지 넘치는 댄스 스타일이에요',
+      });
+    }
   }
 
   // 신뢰도 순 정렬
