@@ -404,8 +404,8 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
   bufferSource.buffer = audioBuffer;
   bufferSource.connect(analyser);
 
-  // 분석할 세그먼트들
-  const segmentCount = 10;
+  // 분석할 세그먼트들 (성능 최적화: 10 → 5)
+  const segmentCount = 5;
   const segmentLength = Math.floor(channelData.length / segmentCount);
 
   let totalCentroid = 0;
@@ -428,8 +428,8 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
     const end = Math.min(start + segmentLength, channelData.length);
     const segment = channelData.slice(start, end);
 
-    // FFT 분석
-    const fftSize = 2048;
+    // FFT 분석 (성능 최적화: 2048 → 1024)
+    const fftSize = 1024;
     const spectrum = new Float32Array(fftSize / 2);
 
     // 간단한 FFT 시뮬레이션 (실제로는 Web Audio API의 analyser 사용)
@@ -439,7 +439,9 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
       let imag = 0;
       const freq = (i * audioBuffer.sampleRate) / fftSize;
 
-      for (let n = 0; n < Math.min(segment.length, fftSize); n++) {
+      // 성능 최적화: 샘플 수 제한
+      const maxSamples = Math.min(segment.length, fftSize / 2);
+      for (let n = 0; n < maxSamples; n++) {
         const angle = (2 * Math.PI * freq * n) / audioBuffer.sampleRate;
         real += segment[n] * Math.cos(angle);
         imag += segment[n] * Math.sin(angle);
