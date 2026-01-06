@@ -25,6 +25,22 @@ export function TimbreResult({ profile, style }: TimbreResultProps) {
     breathy: '💨',
   };
 
+  // 발성 기법 이모지
+  const techniqueEmoji = {
+    powerful: '💪',
+    soft: '🌸',
+    controlled: '🎯',
+    expressive: '🎭',
+  };
+
+  // 표현력 이모지
+  const expressivenessEmoji = {
+    dramatic: '🎪',
+    stable: '🏛️',
+    emotional: '💝',
+    technical: '⚙️',
+  };
+
   return (
     <div className="space-y-6">
       {/* 메인 결과 */}
@@ -43,6 +59,52 @@ export function TimbreResult({ profile, style }: TimbreResultProps) {
             {style.textureType === 'breathy' && '숨소리 섞인'}
             {' '}질감
           </span>
+        </div>
+      </div>
+
+      {/* 상세 분석 결과 */}
+      <div className="bg-gradient-to-br from-indigo-50 to-blue-100 rounded-2xl shadow-xl p-6 border-2 border-indigo-300">
+        <h3 className="text-2xl font-bold text-gray-800 mb-4 text-center">🎤 상세 음성 분석</h3>
+
+        <div className="space-y-3">
+          <div className="bg-white rounded-xl p-4">
+            <p className="text-sm font-semibold text-gray-600 mb-1">목소리 특징</p>
+            <p className="text-lg font-bold text-indigo-700">{style.detailedAnalysis.voiceQuality}</p>
+          </div>
+
+          <div className="bg-white rounded-xl p-4">
+            <p className="text-sm font-semibold text-gray-600 mb-1">강점 영역</p>
+            <p className="text-lg font-bold text-indigo-700">{style.detailedAnalysis.strengthArea}</p>
+          </div>
+
+          <div className="bg-white rounded-xl p-4">
+            <p className="text-sm font-semibold text-gray-600 mb-1">추천 스타일</p>
+            <p className="text-lg font-bold text-indigo-700">{style.detailedAnalysis.recommendedStyle}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-xl p-4 text-center">
+              <span className="text-3xl">{techniqueEmoji[style.vocalTechnique]}</span>
+              <p className="text-xs text-gray-600 mt-2">발성 기법</p>
+              <p className="font-bold text-gray-800">
+                {style.vocalTechnique === 'powerful' && '강렬한'}
+                {style.vocalTechnique === 'soft' && '부드러운'}
+                {style.vocalTechnique === 'controlled' && '절제된'}
+                {style.vocalTechnique === 'expressive' && '표현적인'}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-4 text-center">
+              <span className="text-3xl">{expressivenessEmoji[style.expressiveness]}</span>
+              <p className="text-xs text-gray-600 mt-2">표현 방식</p>
+              <p className="font-bold text-gray-800">
+                {style.expressiveness === 'dramatic' && '드라마틱'}
+                {style.expressiveness === 'stable' && '안정적'}
+                {style.expressiveness === 'emotional' && '감성적'}
+                {style.expressiveness === 'technical' && '테크니컬'}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -121,6 +183,89 @@ export function TimbreResult({ profile, style }: TimbreResultProps) {
         </div>
       </div>
 
+      {/* 고급 음성 분석 지표 */}
+      <div className="bg-white rounded-2xl shadow-lg p-6">
+        <h3 className="text-2xl font-bold text-gray-800 mb-4">📊 고급 음성 분석</h3>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {/* 화성비 */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4 rounded-xl border border-green-200">
+            <p className="text-xs text-gray-600 mb-1">화성비 (Harmonicity)</p>
+            <p className="text-2xl font-bold text-green-700">{toPercent(profile.harmonicity)}%</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {profile.harmonicity > 0.7 ? '매우 깨끗한 음성' : profile.harmonicity > 0.4 ? '보통' : '노이즈 많음'}
+            </p>
+          </div>
+
+          {/* 스펙트럼 평탄도 */}
+          <div className="bg-gradient-to-br from-purple-50 to-violet-100 p-4 rounded-xl border border-purple-200">
+            <p className="text-xs text-gray-600 mb-1">스펙트럼 평탄도</p>
+            <p className="text-2xl font-bold text-purple-700">{toPercent(profile.spectralFlatness)}%</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {profile.spectralFlatness < 0.2 ? '음악적' : profile.spectralFlatness < 0.4 ? '중간' : '노이즈 많음'}
+            </p>
+          </div>
+
+          {/* 피치 범위 */}
+          <div className="bg-gradient-to-br from-blue-50 to-cyan-100 p-4 rounded-xl border border-blue-200">
+            <p className="text-xs text-gray-600 mb-1">음역대 너비</p>
+            <p className="text-2xl font-bold text-blue-700">{profile.pitchRange.toFixed(1)} st</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {profile.pitchRange > 18 ? '매우 넓음' : profile.pitchRange > 12 ? '넓음' : '좁음'}
+            </p>
+          </div>
+
+          {/* 지터 */}
+          <div className="bg-gradient-to-br from-orange-50 to-amber-100 p-4 rounded-xl border border-orange-200">
+            <p className="text-xs text-gray-600 mb-1">지터 (Jitter)</p>
+            <p className="text-2xl font-bold text-orange-700">{profile.jitter.toFixed(2)}%</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {profile.jitter < 1 ? '매우 안정적' : profile.jitter < 2 ? '안정적' : '불안정'}
+            </p>
+          </div>
+
+          {/* 시머 */}
+          <div className="bg-gradient-to-br from-pink-50 to-rose-100 p-4 rounded-xl border border-pink-200">
+            <p className="text-xs text-gray-600 mb-1">시머 (Shimmer)</p>
+            <p className="text-2xl font-bold text-pink-700">{profile.shimmer.toFixed(2)}%</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {profile.shimmer < 3 ? '매우 안정적' : profile.shimmer < 6 ? '안정적' : '불안정'}
+            </p>
+          </div>
+
+          {/* 어택 타임 */}
+          <div className="bg-gradient-to-br from-red-50 to-orange-100 p-4 rounded-xl border border-red-200">
+            <p className="text-xs text-gray-600 mb-1">어택 타임</p>
+            <p className="text-2xl font-bold text-red-700">{profile.attackTime.toFixed(0)}ms</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {profile.attackTime < 60 ? '빠름' : profile.attackTime < 100 ? '보통' : '느림'}
+            </p>
+          </div>
+        </div>
+
+        {/* 비브라토 정보 (있을 경우에만 표시) */}
+        {profile.vibratoRate !== null && (
+          <div className="mt-4 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-200">
+            <p className="font-semibold text-gray-700 mb-2">🎵 비브라토 검출됨!</p>
+            <div className="flex gap-6">
+              <div>
+                <p className="text-xs text-gray-600">진동 속도</p>
+                <p className="text-lg font-bold text-indigo-700">{profile.vibratoRate.toFixed(2)} Hz</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600">진동 폭</p>
+                <p className="text-lg font-bold text-indigo-700">{profile.vibratoExtent.toFixed(2)} 반음</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              {profile.vibratoRate < 5 ? '느린 비브라토 (오페라 스타일)' :
+               profile.vibratoRate < 6.5 ? '적당한 비브라토 (발라드 스타일)' :
+               '빠른 비브라토 (팝 스타일)'}
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* 장르 추천 */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h3 className="text-2xl font-bold text-gray-800 mb-4">🎵 추천 장르</h3>
@@ -167,14 +312,33 @@ export function TimbreResult({ profile, style }: TimbreResultProps) {
       {/* 기술적 상세 정보 */}
       <details className="bg-gray-50 rounded-lg p-4">
         <summary className="cursor-pointer font-semibold text-gray-700">
-          🔬 기술적 상세 정보
+          🔬 기술적 상세 정보 (Raw Data)
         </summary>
-        <div className="mt-3 space-y-2 text-sm text-gray-600">
-          <p>• Spectral Centroid: {profile.spectralCentroid.toFixed(1)} Hz</p>
-          <p>• Zero Crossing Rate: {profile.zeroCrossingRate.toFixed(4)}</p>
-          <p>• Spectral Rolloff: {profile.spectralRolloff.toFixed(1)} Hz</p>
-          <p>• Dynamic Range: {profile.dynamicRange.toFixed(1)} dB</p>
-          <p>• Average Energy (RMS): {profile.averageEnergy.toFixed(4)}</p>
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+          <div>
+            <p className="font-semibold text-gray-700 mb-2">기본 특성</p>
+            <p>• Spectral Centroid: {profile.spectralCentroid.toFixed(1)} Hz</p>
+            <p>• Zero Crossing Rate: {profile.zeroCrossingRate.toFixed(4)}</p>
+            <p>• Spectral Rolloff: {profile.spectralRolloff.toFixed(1)} Hz</p>
+            <p>• Dynamic Range: {profile.dynamicRange.toFixed(1)} dB</p>
+            <p>• Average Energy (RMS): {profile.averageEnergy.toFixed(4)}</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 mb-2">고급 특성</p>
+            <p>• HNR (Harmonics-to-Noise Ratio): {profile.hnr.toFixed(2)} dB</p>
+            <p>• Harmonicity: {profile.harmonicity.toFixed(3)}</p>
+            <p>• Spectral Flatness: {profile.spectralFlatness.toFixed(3)}</p>
+            <p>• Jitter: {profile.jitter.toFixed(3)}%</p>
+            <p>• Shimmer: {profile.shimmer.toFixed(3)}%</p>
+            <p>• Attack Time: {profile.attackTime.toFixed(1)} ms</p>
+            <p>• Pitch Range: {profile.pitchRange.toFixed(2)} semitones</p>
+            {profile.vibratoRate !== null && (
+              <>
+                <p>• Vibrato Rate: {profile.vibratoRate.toFixed(2)} Hz</p>
+                <p>• Vibrato Extent: {profile.vibratoExtent.toFixed(2)} semitones</p>
+              </>
+            )}
+          </div>
         </div>
       </details>
     </div>
