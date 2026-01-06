@@ -1,4 +1,9 @@
 // 음역대 측정 유틸리티
+import {
+  preEmphasis,
+  detectVoiceActivity,
+  NoiseProfileEstimator,
+} from './audioProcessing';
 
 export interface PitchDetectionResult {
   frequency: number;
@@ -34,10 +39,21 @@ export function midiToNote(midi: number): number {
 }
 
 /**
- * Autocorrelation을 사용한 피치 검출
+ * Autocorrelation을 사용한 피치 검출 (노이즈 제거 강화)
  */
-function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
-  const SIZE = buffer.length;
+function autoCorrelate(
+  buffer: Float32Array,
+  sampleRate: number,
+  useNoiseReduction: boolean = true
+): number {
+  // 노이즈 제거 전처리 적용
+  let processedBuffer = buffer;
+  if (useNoiseReduction) {
+    // Pre-emphasis 적용 (고주파 강조)
+    processedBuffer = preEmphasis(buffer, 0.97);
+  }
+
+  const SIZE = processedBuffer.length;
   const MAX_SAMPLES = Math.floor(SIZE / 2);
   let bestOffset = -1;
   let bestCorrelation = 0;
@@ -45,7 +61,7 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
 
   // RMS (Root Mean Square) 계산
   for (let i = 0; i < SIZE; i++) {
-    const val = buffer[i];
+    const val = processedBuffer[i];
     rms += val * val;
   }
   rms = Math.sqrt(rms / SIZE);
@@ -53,12 +69,12 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
   // 너무 조용하면 -1 반환 (임계값 상향으로 노이즈 제거)
   if (rms < 0.05) return -1;
 
-  // 자기상관 계산
+  // 자기상관 계산 (개선된 버전)
   let lastCorrelation = 1;
   for (let offset = 1; offset < MAX_SAMPLES; offset++) {
     let correlation = 0;
     for (let i = 0; i < MAX_SAMPLES; i++) {
-      correlation += Math.abs(buffer[i] - buffer[i + offset]);
+      correlation += Math.abs(processedBuffer[i] - processedBuffer[i + offset]);
     }
     correlation = 1 - correlation / MAX_SAMPLES;
 
@@ -73,7 +89,9 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
     lastCorrelation = correlation;
   }
 
-  if (bestCorrelation > 0.01) {
+  // 신뢰도가 충분히 높을 때만 주파수 반환
+  if (bestCorrelation > 0.85) {
+    // 임계값 상향 (0.01 → 0.85)
     return sampleRate / bestOffset;
   }
   return -1;
@@ -101,7 +119,19 @@ export function detectPitch(
 
   for (let i = startSample; i < endSample - windowSize; i += hopSize) {
     const buffer = channelData.slice(i, i + windowSize);
-    const frequency = autoCorrelate(buffer, sampleRate);
+
+    // VAD (Voice Activity Detection) - 음성 구간만 처리
+    const hasVoice = detectVoiceActivity(buffer, sampleRate, {
+      energy: 0.02,
+      zcr: 0.3,
+      spectralFlux: 0.05,
+    });
+
+    if (!hasVoice) {
+      continue; // 음성이 아닌 구간은 건너뜀
+    }
+
+    const frequency = autoCorrelate(buffer, sampleRate, true);
 
     // 주파수 범위 축소 (1200Hz → 800Hz, E2 ~ G#5)
     // 일반인 음역대에 맞게 조정
@@ -112,7 +142,7 @@ export function detectPitch(
         frequency,
         note,
         noteName: '', // 나중에 채울 예정
-        confidence: 0.8,
+        confidence: 0.9, // VAD 통과한 구간이므로 신뢰도 높임
       });
     }
   }
@@ -162,6 +192,8 @@ export class RealTimePitchDetector {
   private mediaStream: MediaStream | null = null;
   private rafId: number | null = null;
   private onPitchCallback: ((result: PitchDetectionResult) => void) | null = null;
+  private noiseEstimator: NoiseProfileEstimator = new NoiseProfileEstimator();
+  private frameCount: number = 0;
 
   async start(onPitch: (result: PitchDetectionResult) => void) {
     this.onPitchCallback = onPitch;
@@ -187,20 +219,39 @@ export class RealTimePitchDetector {
     const buffer = new Float32Array(this.analyser.fftSize);
     this.analyser.getFloatTimeDomainData(buffer);
 
-    const frequency = autoCorrelate(buffer, this.audioContext.sampleRate);
+    this.frameCount++;
 
-    // 주파수 범위 축소 (실시간도 동일하게 적용)
-    if (frequency > 0 && frequency >= 80 && frequency <= 800) {
-      const midi = frequencyToNote(frequency);
-      const note = midiToNote(midi);
+    // VAD (Voice Activity Detection)
+    const hasVoice = detectVoiceActivity(buffer, this.audioContext.sampleRate, {
+      energy: 0.03, // 실시간은 임계값을 약간 높게
+      zcr: 0.3,
+      spectralFlux: 0.05,
+    });
 
-      if (this.onPitchCallback) {
-        this.onPitchCallback({
-          frequency,
-          note,
-          noteName: '',
-          confidence: 0.8,
-        });
+    // 음성이 없는 구간은 노이즈 프로파일 업데이트
+    if (!hasVoice && this.frameCount % 5 === 0) {
+      // 5프레임마다 한 번
+      this.noiseEstimator.addNoiseSample(buffer);
+    }
+
+    // 음성이 있는 구간만 피치 검출
+    if (hasVoice) {
+      // 노이즈 제거 적용한 피치 검출
+      const frequency = autoCorrelate(buffer, this.audioContext.sampleRate, true);
+
+      // 주파수 범위 축소 (실시간도 동일하게 적용)
+      if (frequency > 0 && frequency >= 80 && frequency <= 800) {
+        const midi = frequencyToNote(frequency);
+        const note = midiToNote(midi);
+
+        if (this.onPitchCallback) {
+          this.onPitchCallback({
+            frequency,
+            note,
+            noteName: '',
+            confidence: 0.9, // VAD 통과 + 노이즈 제거 적용으로 신뢰도 높임
+          });
+        }
       }
     }
 
@@ -225,5 +276,8 @@ export class RealTimePitchDetector {
 
     this.analyser = null;
     this.onPitchCallback = null;
+    this.noiseEstimator.reset();
+    this.frameCount = 0;
   }
 }
+
