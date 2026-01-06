@@ -317,12 +317,17 @@ function calculateAttackTime(
   timeDomainData: Float32Array,
   sampleRate: number
 ): number {
+  // Attack time은 소리의 시작 부분만 분석하면 되므로
+  // 처음 2초만 사용 (너무 긴 버퍼로 인한 스택 오버플로우 방지)
+  const maxSamples = Math.min(timeDomainData.length, sampleRate * 2);
+  const analysisBuffer = timeDomainData.slice(0, maxSamples);
+
   // RMS 엔벨로프 계산
   const windowSize = 128;
   const envelope: number[] = [];
 
-  for (let i = 0; i < timeDomainData.length - windowSize; i += windowSize / 2) {
-    const window = timeDomainData.slice(i, i + windowSize);
+  for (let i = 0; i < analysisBuffer.length - windowSize; i += windowSize / 2) {
+    const window = analysisBuffer.slice(i, i + windowSize);
     const rms = calculateRMS(window);
     envelope.push(rms);
   }
