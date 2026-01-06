@@ -271,42 +271,53 @@ function detectVibrato(pitchTrack: number[]): {
 
 /**
  * Jitter 계산 (음정의 미세한 떨림)
- * 연속된 피치 주기의 변동성
+ * 연속된 피치 주기의 변동성 - 주파수(Hz) 기반으로 계산
+ * 참고: Praat 표준 - 정상 범위 0.5-0.6%
  */
-function calculateJitter(pitchTrack: number[]): number {
-  if (pitchTrack.length < 2) return 0;
+function calculateJitter(frequencyTrack: number[]): number {
+  if (frequencyTrack.length < 2) return 0;
+
+  // 주파수를 주기(period)로 변환: period = 1 / frequency
+  const periods: number[] = frequencyTrack.map(f => f > 0 ? 1 / f : 0).filter(p => p > 0);
+
+  if (periods.length < 2) return 0;
 
   // 주기 간 차이의 평균 절대값 계산
   let sumAbsDiff = 0;
-  for (let i = 1; i < pitchTrack.length; i++) {
-    sumAbsDiff += Math.abs(pitchTrack[i] - pitchTrack[i - 1]);
+  for (let i = 1; i < periods.length; i++) {
+    sumAbsDiff += Math.abs(periods[i] - periods[i - 1]);
   }
 
-  const avgAbsDiff = sumAbsDiff / (pitchTrack.length - 1);
-  const avgPitch = pitchTrack.reduce((a, b) => a + b, 0) / pitchTrack.length;
+  const avgAbsDiff = sumAbsDiff / (periods.length - 1);
+  const avgPeriod = periods.reduce((a, b) => a + b, 0) / periods.length;
 
-  // Jitter (%) = (평균 절대 차이 / 평균 피치) * 100
-  return avgPitch > 0 ? (avgAbsDiff / avgPitch) * 100 : 0;
+  // Jitter (%) = (평균 절대 차이 / 평균 주기) * 100
+  return avgPeriod > 0 ? (avgAbsDiff / avgPeriod) * 100 : 0;
 }
 
 /**
  * Shimmer 계산 (음량의 미세한 떨림)
- * 연속된 RMS 값의 변동성
+ * 연속된 RMS 값의 변동성 - dB 단위로 계산
+ * 참고: Praat 표준 - 정상 범위 0.19-0.22 dB
  */
 function calculateShimmer(rmsTrack: number[]): number {
   if (rmsTrack.length < 2) return 0;
 
-  // RMS 간 차이의 평균 절대값 계산
+  // RMS 값들을 dB로 변환하여 차이 계산
   let sumAbsDiff = 0;
+  let validDiffs = 0;
+
   for (let i = 1; i < rmsTrack.length; i++) {
-    sumAbsDiff += Math.abs(rmsTrack[i] - rmsTrack[i - 1]);
+    if (rmsTrack[i] > 0 && rmsTrack[i - 1] > 0) {
+      // dB 차이 = 20 * log10(rms1 / rms2)
+      const dbDiff = Math.abs(20 * Math.log10(rmsTrack[i] / rmsTrack[i - 1]));
+      sumAbsDiff += dbDiff;
+      validDiffs++;
+    }
   }
 
-  const avgAbsDiff = sumAbsDiff / (rmsTrack.length - 1);
-  const avgRMS = rmsTrack.reduce((a, b) => a + b, 0) / rmsTrack.length;
-
-  // Shimmer (%) = (평균 절대 차이 / 평균 RMS) * 100
-  return avgRMS > 0 ? (avgAbsDiff / avgRMS) * 100 : 0;
+  // Shimmer (dB) = 평균 절대 dB 차이
+  return validDiffs > 0 ? sumAbsDiff / validDiffs : 0;
 }
 
 /**
@@ -379,7 +390,8 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
   let minRMS = Infinity;
   let maxRMS = -Infinity;
 
-  const pitchTrack: number[] = [];
+  const pitchTrack: number[] = []; // 세미톤 단위 (음역대 계산용)
+  const frequencyTrack: number[] = []; // Hz 단위 (Jitter 계산용)
   const rmsTrack: number[] = [];
   let minPitch = Infinity;
   let maxPitch = -Infinity;
@@ -438,12 +450,16 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
     minRMS = Math.min(minRMS, rms);
     maxRMS = Math.max(maxRMS, rms);
 
-    // 피치 트래킹 (세미톤 단위로 변환)
+    // 피치 트래킹
     if (fundamentalFreq > 0 && fundamentalFreq >= 80 && fundamentalFreq <= 800) {
+      // 세미톤 단위 (음역대 계산용)
       const semitone = 12 * Math.log2(fundamentalFreq / 440);
       pitchTrack.push(semitone);
       minPitch = Math.min(minPitch, semitone);
       maxPitch = Math.max(maxPitch, semitone);
+
+      // Hz 단위 (Jitter 계산용)
+      frequencyTrack.push(fundamentalFreq);
     }
 
     rmsTrack.push(rms);
@@ -463,17 +479,48 @@ export async function analyzeTimbre(audioBuffer: AudioBuffer): Promise<TimbrePro
   const richness = Math.min(1, avgRolloff / 8000); // ~8kHz를 기준으로
 
   // Harmonicity는 HNR을 0~1로 정규화 (clarity와 동일 개념이므로 통합)
-  const harmonicity = Math.min(1, avgHNR / 40); // ~40dB를 최대로
+  // 참고: 정상 음성 HNR 범위 10-25 dB (연구 표준)
+  const harmonicity = Math.min(1, avgHNR / 25); // ~25dB를 최대로 (연구 기반)
   const clarity = harmonicity; // 하위 호환성을 위해 유지 (harmonicity와 동일)
 
   const dynamicRange = 20 * Math.log10(maxRMS / (minRMS + 1e-10));
 
   // 고급 특징 계산
   const vibrato = detectVibrato(pitchTrack);
-  const jitter = calculateJitter(pitchTrack);
-  const shimmer = calculateShimmer(rmsTrack);
+  const jitter = calculateJitter(frequencyTrack); // 주파수 기반으로 수정
+  const shimmer = calculateShimmer(rmsTrack); // dB 단위로 수정
   const attackTime = calculateAttackTime(channelData, audioBuffer.sampleRate);
   const pitchRange = maxPitch !== -Infinity ? maxPitch - minPitch : 0;
+
+  // 디버그 로깅: 실제 측정값 출력 (개발 모드)
+  // Vite 환경에서는 import.meta.env.DEV를 사용
+  if (import.meta.env.DEV) {
+    console.group('🎵 음성 분석 측정값 (Voice Analysis Debug)');
+    console.log('📊 기본 측정값:');
+    console.log(`  - Spectral Centroid: ${avgCentroid.toFixed(2)} Hz`);
+    console.log(`  - Zero Crossing Rate: ${avgZCR.toFixed(4)}`);
+    console.log(`  - Spectral Rolloff: ${avgRolloff.toFixed(2)} Hz`);
+    console.log(`  - RMS Energy: ${avgRMS.toFixed(6)}`);
+    console.log(`  - Dynamic Range: ${dynamicRange.toFixed(2)} dB`);
+    console.log('');
+    console.log('🎼 고급 음성 측정값:');
+    console.log(`  - HNR (원본): ${avgHNR.toFixed(2)} dB (정상: 10-25 dB)`);
+    console.log(`  - Harmonicity (정규화): ${(harmonicity * 100).toFixed(1)}%`);
+    console.log(`  - Spectral Flatness: ${avgFlatness.toFixed(4)} (0=톤, 1=노이즈)`);
+    console.log(`  - Jitter: ${jitter.toFixed(2)}% (정상: 0.5-0.6%)`);
+    console.log(`  - Shimmer: ${shimmer.toFixed(2)} dB (정상: 0.19-0.22 dB)`);
+    console.log(`  - Attack Time: ${attackTime.toFixed(2)} ms`);
+    console.log(`  - Pitch Range: ${pitchRange.toFixed(2)} semitones`);
+    console.log(`  - Vibrato Rate: ${vibrato.rate ? vibrato.rate.toFixed(2) + ' Hz' : 'None'}`);
+    console.log(`  - Vibrato Extent: ${vibrato.extent.toFixed(2)} semitones`);
+    console.log('');
+    console.log('📈 정규화된 특징값 (0-1):');
+    console.log(`  - Brightness: ${(brightness * 100).toFixed(1)}%`);
+    console.log(`  - Roughness: ${(roughness * 100).toFixed(1)}%`);
+    console.log(`  - Clarity: ${(clarity * 100).toFixed(1)}%`);
+    console.log(`  - Richness: ${(richness * 100).toFixed(1)}%`);
+    console.groupEnd();
+  }
 
   await audioContext.close();
 
@@ -546,9 +593,9 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
   let vocalTechnique: VocalStyle['vocalTechnique'];
   if (dynamicRange > 15 && attackTime < 50) {
     vocalTechnique = 'powerful'; // 다이내믹 크고 빠른 어택
-  } else if (dynamicRange < 8 && jitter < 0.5 && shimmer < 2) {
+  } else if (dynamicRange < 8 && jitter < 0.5 && shimmer < 0.3) {
     vocalTechnique = 'controlled'; // 안정적이고 통제된 발성
-  } else if (attackTime > 100 && shimmer < 2) {
+  } else if (attackTime > 100 && shimmer < 0.3) {
     vocalTechnique = 'soft'; // 부드러운 어택
   } else {
     vocalTechnique = 'expressive'; // 표현력 있는 발성
@@ -557,14 +604,14 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
   // 표현력 특성 판별
   let expressiveness: VocalStyle['expressiveness'];
   const hasVibrato = vibratoRate !== null && vibratoExtent > 0.3;
-  const isStable = jitter < 0.5 && shimmer < 2;
+  const isStable = jitter < 0.5 && shimmer < 0.3;
   const isVaried = dynamicRange > 12;
 
-  if (hasVibrato && isVaried && (jitter > 1 || shimmer > 3)) {
+  if (hasVibrato && isVaried && (jitter > 1 || shimmer > 0.5)) {
     expressiveness = 'dramatic'; // 비브라토 + 다이내믹 + 변동성
   } else if (isStable && !hasVibrato && dynamicRange < 10) {
     expressiveness = 'stable'; // 안정적이고 일정한 발성
-  } else if ((jitter > 1 || shimmer > 3) && dynamicRange > 10) {
+  } else if ((jitter > 1 || shimmer > 0.5) && dynamicRange > 10) {
     expressiveness = 'emotional'; // 변동성이 높음 (감정적)
   } else {
     expressiveness = 'technical'; // 기술적이고 균형잡힌
@@ -602,9 +649,9 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
   }
 
   // 발라드: 감정적 표현 + 넓은 다이내믹 + 비브라토 + 음역대
-  if (dynamicRange > 8 || jitter > 0.8 || shimmer > 2) {
+  if (dynamicRange > 8 || jitter > 0.8 || shimmer > 0.3) {
     const scores = {
-      emotion: (jitter > 1.5 || shimmer > 4) ? 1.0 : (jitter > 0.8 || shimmer > 2.5) ? 0.8 : 0.5,
+      emotion: (jitter > 1.5 || shimmer > 0.7) ? 1.0 : (jitter > 0.8 || shimmer > 0.4) ? 0.8 : 0.5,
       dynamics: dynamicRange > 15 ? 1.0 : dynamicRange > 10 ? 0.8 : dynamicRange > 8 ? 0.5 : 0.3,
       range: pitchRange > 18 ? 1.0 : pitchRange > 12 ? 0.8 : 0.5,
       vibrato: hasVibrato ? (vibratoExtent > 0.5 ? 1.0 : 0.7) : 0.4,
@@ -616,7 +663,7 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
 
     if (confidence > 0.5) {
       const reasons = [];
-      if (scores.emotion > 0.7) reasons.push(`감정 표현 (J${jitter.toFixed(1)}% S${shimmer.toFixed(1)}%)`);
+      if (scores.emotion > 0.7) reasons.push(`감정 표현 (J${jitter.toFixed(1)}% S${shimmer.toFixed(2)}dB)`);
       if (scores.dynamics > 0.7) reasons.push(`다이내믹 ${dynamicRange.toFixed(1)}dB`);
       if (scores.range > 0.7) reasons.push(`음역 ${pitchRange.toFixed(0)}st`);
       if (scores.vibrato > 0.6 && hasVibrato) reasons.push(`비브라토`);
@@ -657,11 +704,11 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
   }
 
   // R&B/소울: 어둡고 풍부 + 감정적 표현 + 느린 어택
-  if (brightness < 0.5 || richness > 0.5 || (jitter > 1 && shimmer > 3)) {
+  if (brightness < 0.5 || richness > 0.5 || (jitter > 1 && shimmer > 0.5)) {
     const scores = {
       darkness: brightness < 0.35 ? 1.0 : brightness < 0.45 ? 0.8 : 0.5,
       richness: richness > 0.6 ? 1.0 : richness > 0.5 ? 0.8 : 0.5,
-      emotion: (jitter > 1.5 || shimmer > 4) ? 1.0 : (jitter > 1 || shimmer > 3) ? 0.8 : 0.5,
+      emotion: (jitter > 1.5 || shimmer > 0.7) ? 1.0 : (jitter > 1 || shimmer > 0.5) ? 0.8 : 0.5,
       dynamics: dynamicRange > 12 ? 1.0 : dynamicRange > 10 ? 0.7 : 0.5,
       vibrato: hasVibrato ? (vibratoExtent > 0.5 ? 1.0 : 0.7) : 0.5,
     };
@@ -673,7 +720,7 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
       const reasons = [];
       if (scores.darkness > 0.7) reasons.push(`깊은 음색`);
       if (scores.richness > 0.7) reasons.push(`풍부함 ${(richness * 100).toFixed(0)}%`);
-      if (scores.emotion > 0.7) reasons.push(`감정 (J${jitter.toFixed(1)}%)`);
+      if (scores.emotion > 0.7) reasons.push(`감정 (J${jitter.toFixed(1)}% S${shimmer.toFixed(2)}dB)`);
 
       suggestedGenres.push({
         genre: 'R&B/소울 (R&B/Soul)',
@@ -690,7 +737,7 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
       flatness: spectralFlatness > 0.45 ? 1.0 : spectralFlatness > 0.35 ? 0.8 : 0.5,
       attack: attackTime < 50 ? 1.0 : attackTime < 60 ? 0.8 : attackTime < 70 ? 0.6 : 0.3,
       dynamics: dynamicRange > 15 ? 1.0 : dynamicRange > 12 ? 0.8 : 0.5,
-      power: (jitter > 1 || shimmer > 3) ? 0.8 : 0.5,
+      power: (jitter > 1 || shimmer > 0.5) ? 0.8 : 0.5,
     };
 
     const confidence = (scores.roughness * 0.25 + scores.flatness * 0.2 + scores.attack * 0.25 +
@@ -742,7 +789,7 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
     const scores = {
       flatness: spectralFlatness > 0.5 ? 1.0 : spectralFlatness > 0.4 ? 0.8 : 0.5,
       attack: attackTime < 40 ? 1.0 : attackTime < 50 ? 0.8 : attackTime < 60 ? 0.6 : 0.3,
-      stability: (jitter < 1 && shimmer < 4) ? 0.8 : 0.5,
+      stability: (jitter < 1 && shimmer < 0.6) ? 0.8 : 0.5,
       rhythm: !hasVibrato ? 0.9 : 0.5, // 비브라토 없는 것이 힙합에 더 적합
     };
 
@@ -763,11 +810,11 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
   }
 
   // 어쿠스틱/포크: 중립적 + 안정적 + 자연스러움
-  if ((brightness > 0.4 && brightness < 0.7) || (jitter < 1.2 && shimmer < 4 && harmonicity > 0.4)) {
+  if ((brightness > 0.4 && brightness < 0.7) || (jitter < 1.2 && shimmer < 0.6 && harmonicity > 0.4)) {
     const scores = {
       balance: 1.0 - Math.abs(brightness - 0.55) * 2,
       clarity: harmonicity > 0.6 ? 1.0 : harmonicity > 0.5 ? 0.8 : harmonicity > 0.4 ? 0.6 : 0.4,
-      stability: (jitter < 1 && shimmer < 3) ? 1.0 : (jitter < 1.5 && shimmer < 4) ? 0.7 : 0.5,
+      stability: (jitter < 1 && shimmer < 0.4) ? 1.0 : (jitter < 1.5 && shimmer < 0.6) ? 0.7 : 0.5,
       natural: (spectralFlatness < 0.3 && !hasVibrato) ? 0.9 : spectralFlatness < 0.35 ? 0.7 : 0.5,
       attack: attackTime > 70 ? 1.0 : attackTime > 60 ? 0.7 : 0.5,
     };
@@ -790,11 +837,11 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
   }
 
   // 댄스/일렉트로닉: 밝고 에너지 + 안정적 + 빠른 어택
-  if (brightness > 0.6 || (attackTime < 65 && jitter < 1 && shimmer < 4)) {
+  if (brightness > 0.6 || (attackTime < 65 && jitter < 1 && shimmer < 0.6)) {
     const scores = {
       brightness: brightness > 0.75 ? 1.0 : brightness > 0.65 ? 0.8 : 0.5,
       attack: attackTime < 50 ? 1.0 : attackTime < 60 ? 0.8 : attackTime < 70 ? 0.6 : 0.3,
-      stability: (jitter < 0.8 && shimmer < 3) ? 1.0 : (jitter < 1 && shimmer < 4) ? 0.7 : 0.5,
+      stability: (jitter < 0.8 && shimmer < 0.4) ? 1.0 : (jitter < 1 && shimmer < 0.6) ? 0.7 : 0.5,
       energy: harmonicity > 0.6 ? 0.9 : 0.6,
       rhythm: !hasVibrato ? 0.9 : hasVibrato && vibratoExtent < 0.4 ? 0.6 : 0.4,
     };
@@ -863,7 +910,7 @@ export function inferVocalStyle(profile: TimbreProfile): VocalStyle {
   }
 
   let strengthArea = '';
-  if (dynamicRange > 15 && (jitter > 1 || shimmer > 3)) {
+  if (dynamicRange > 15 && (jitter > 1 || shimmer > 0.5)) {
     strengthArea = '강렬한 감정 표현';
   } else if (harmonicity > 0.7 && jitter < 0.5) {
     strengthArea = '안정적이고 정확한 음정';

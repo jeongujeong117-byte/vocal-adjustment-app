@@ -259,28 +259,29 @@ export function TimbreResult({ profile, style }: TimbreResultProps) {
           <div className="bg-gradient-to-br from-pink-50 to-rose-100 p-4 rounded-xl border border-pink-200">
             <div className="flex items-center gap-1 mb-1">
               <p className="text-xs text-gray-600">시머 (Shimmer)</p>
-              <Tooltip content={`음량의 미세한 떨림을 측정합니다.
+              <Tooltip content={`음량의 미세한 떨림을 측정합니다 (dB 단위).
 
 연속된 음의 진폭 변동성:
-• 3% 미만: 매우 안정적
-• 3~6%: 안정적
-• 6~10%: 감정적 표현
-• 10% 이상: 매우 불안정
+• 0.3 dB 미만: 매우 안정적 (기계적)
+• 0.3~0.5 dB: 안정적 (정상 범위)
+• 0.5~1.0 dB: 감정적 표현
+• 1.0 dB 이상: 매우 감정적
 
-예시:
-- 일렉트로닉 보컬: 1~2%
-- 팝 가수: 2~5%
-- 발라드/R&B: 4~8%
+연구 기준 (Praat):
+- 정상 음성: 0.19~0.22 dB
+- 일렉트로닉: 0.1~0.3 dB
+- 팝 가수: 0.3~0.5 dB
+- 발라드/R&B: 0.5~1.0 dB
 
 감정 표현이 풍부하면 높아져요!`}>
                 <span className="text-xs text-gray-400 cursor-help">ⓘ</span>
               </Tooltip>
             </div>
-            <p className="text-2xl font-bold text-pink-700">{profile.shimmer.toFixed(2)}%</p>
+            <p className="text-2xl font-bold text-pink-700">{profile.shimmer.toFixed(2)} dB</p>
             <p className="text-xs text-gray-500 mt-1">
-              {profile.shimmer < 2 ? '매우 안정적 (댄스/팝)' :
-               profile.shimmer < 4 ? '안정적 (팝/록)' :
-               profile.shimmer < 7 ? '감정적 (발라드/R&B)' :
+              {profile.shimmer < 0.3 ? '매우 안정적 (기계적)' :
+               profile.shimmer < 0.5 ? '안정적 (정상)' :
+               profile.shimmer < 1.0 ? '감정적 (발라드/R&B)' :
                '매우 감정적 (드라마틱)'}
             </p>
           </div>
@@ -428,8 +429,8 @@ export function TimbreResult({ profile, style }: TimbreResultProps) {
             <p>• HNR (Harmonics-to-Noise Ratio): {profile.hnr.toFixed(2)} dB</p>
             <p>• Harmonicity: {profile.harmonicity.toFixed(3)}</p>
             <p>• Spectral Flatness: {profile.spectralFlatness.toFixed(3)}</p>
-            <p>• Jitter: {profile.jitter.toFixed(3)}%</p>
-            <p>• Shimmer: {profile.shimmer.toFixed(3)}%</p>
+            <p>• Jitter: {profile.jitter.toFixed(3)}% (정상: 0.5-0.6%)</p>
+            <p>• Shimmer: {profile.shimmer.toFixed(3)} dB (정상: 0.19-0.22 dB)</p>
             <p>• Attack Time: {profile.attackTime.toFixed(1)} ms</p>
             <p>• Pitch Range: {profile.pitchRange.toFixed(2)} semitones</p>
             {profile.vibratoRate !== null && (
