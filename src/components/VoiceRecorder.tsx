@@ -3,7 +3,6 @@ import type { VocalRange } from '../types';
 import { numberToNote } from '../types';
 import {
   RealTimePitchDetector,
-  detectPitch,
   extractVocalRange,
   type PitchDetectionResult,
 } from '../utils/pitchDetection';
@@ -108,10 +107,41 @@ export function VoiceRecorder({ onRangeDetected }: VoiceRecorderProps) {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const audioContext = new AudioContext();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      const rawBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-      // 피치 검출
-      const results = detectPitch(audioBuffer);
+      // 16kHz로 다운샘플링 (음성 분석에 충분, 처리량 대폭 감소)
+      const targetSampleRate = 16000;
+      let audioBuffer = rawBuffer;
+      if (rawBuffer.sampleRate > targetSampleRate) {
+        const offlineCtx = new OfflineAudioContext(
+          1,
+          Math.ceil(rawBuffer.duration * targetSampleRate),
+          targetSampleRate
+        );
+        const source = offlineCtx.createBufferSource();
+        source.buffer = rawBuffer;
+        source.connect(offlineCtx.destination);
+        source.start(0);
+        audioBuffer = await offlineCtx.startRendering();
+      }
+
+      // Web Worker에서 피치 검출 (완전히 별도 스레드 - 메인 스레드 블로킹 없음)
+      const channelData = audioBuffer.getChannelData(0);
+      const sampleRate = audioBuffer.sampleRate;
+
+      const results = await new Promise<PitchDetectionResult[]>((resolve, reject) => {
+        const worker = new Worker(new URL('../utils/pitchWorker.ts', import.meta.url), { type: 'module' });
+        worker.onmessage = (e) => {
+          worker.terminate();
+          if (e.data.error) reject(new Error(e.data.error));
+          else resolve(e.data.results);
+        };
+        worker.onerror = (e) => {
+          worker.terminate();
+          reject(new Error(e.message));
+        };
+        worker.postMessage({ channelData, sampleRate }, [channelData.buffer]);
+      });
 
       if (results.length === 0) {
         alert('음성을 감지할 수 없습니다. 노래나 목소리가 포함된 파일을 업로드해주세요.');

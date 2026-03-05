@@ -135,8 +135,8 @@ export function harmonicProductSpectrum(
 }
 
 /**
- * 개선된 Voice Activity Detection (VAD)
- * 에너지, 제로 크로싱율, 스펙트럼 플럭스를 종합 판단
+ * Voice Activity Detection (VAD)
+ * 에너지, 제로 크로싱율로 음성 구간 판단
  */
 export function detectVoiceActivity(
   buffer: Float32Array,
@@ -149,7 +149,6 @@ export function detectVoiceActivity(
 ): boolean {
   const energyThreshold = threshold.energy ?? 0.02;
   const zcrThreshold = threshold.zcr ?? 0.3;
-  const spectralFluxThreshold = threshold.spectralFlux ?? 0.05;
 
   // 1. 에너지 계산
   let energy = 0;
@@ -174,18 +173,6 @@ export function detectVoiceActivity(
   // 음성은 일반적으로 ZCR이 중간 정도 (너무 높으면 노이즈, 너무 낮으면 저주파 노이즈)
   if (zcr > zcrThreshold) {
     return false; // 고주파 노이즈일 가능성
-  }
-
-  // 3. 스펙트럼 플럭스 (변화량) - 음성은 시간에 따라 변함
-  const spectrum = computeSpectrum(buffer);
-  let spectralFlux = 0;
-  for (let i = 1; i < spectrum.length; i++) {
-    spectralFlux += Math.abs(spectrum[i] - spectrum[i - 1]);
-  }
-  spectralFlux /= spectrum.length;
-
-  if (spectralFlux < spectralFluxThreshold) {
-    return false; // 너무 정적 (배경 소음)
   }
 
   return true; // 음성으로 판단
